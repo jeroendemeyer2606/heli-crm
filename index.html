@@ -662,15 +662,14 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
       <input class="form-input" id="klantSearch" data-i18n-ph="ph_zoek_klant" placeholder="Zoek klant..." oninput="debouncedRender('klanten')" style="width:180px;padding:5px 10px;font-size:12px"/>
     </div>
     <div id="klantSummary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px"></div>
-    <div class="tbl-wrap"><div class="tbl-scroll"><table>
-      <thead id="klantHead"><tr>
-        <th class="sortable" onclick="sortKlant('nr')">SAP-nr</th>
-        <th class="sortable" onclick="sortKlant('naam')" data-i18n="col_klantnaam">Klantnaam</th>
-        <th data-i18n="col_actief_bij">Actief bij</th>
-        <th class="sortable sort-desc" onclick="sortKlant('omz26')" style="text-align:right" id="th_omz26">Omzet 2026</th>
-        <th class="sortable" onclick="sortKlant('omz25')" style="text-align:right" id="th_omz25">Omzet 2025</th>
-        <th class="sortable" onclick="sortKlant('fac')" style="text-align:right" data-i18n="col_facturen">Facturen</th>
-        <th class="sortable" onclick="sortKlant('ord')" style="text-align:right" data-i18n="col_orders">Orders</th>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table style="table-layout:auto">
+        <th class="sortable" onclick="sortKlant('nr')" style="width:90px;min-width:90px">SAP-nr</th>
+        <th class="sortable" onclick="sortKlant('naam')" data-i18n="col_klantnaam" style="width:220px;min-width:180px">Klantnaam</th>
+        <th data-i18n="col_actief_bij" style="min-width:220px">Actief bij</th>
+        <th class="sortable sort-desc" onclick="sortKlant('omz26')" style="text-align:right;width:160px;min-width:130px" id="th_omz26">Omzet 2026</th>
+        <th class="sortable" onclick="sortKlant('omz25')" style="text-align:right;width:130px;min-width:110px" id="th_omz25">Omzet 2025</th>
+        <th class="sortable" onclick="sortKlant('fac')" style="text-align:right;width:90px;min-width:80px" data-i18n="col_facturen">Facturen</th>
+        <th class="sortable" onclick="sortKlant('ord')" style="text-align:right;width:90px;min-width:80px" data-i18n="col_orders">Orders</th>
       </tr></thead>
       <tbody id="klantTbody"></tbody>
     </table></div></div>
@@ -1326,6 +1325,7 @@ function isFedrus(naam) {
 const PREV_YEAR = CUR_YEAR - 1;
 
 let sapKlanten = [];
+let omzetPeriode = {}; // { Rental: 4, Sales: 4, Safety: 4, HS: null } — max periode per BU voor huidig jaar
 let leads = [];
 let notifs = [];
 let contacten = [];
@@ -2875,8 +2875,8 @@ function renderKlanten() {
     const fedrusBadge = isFedrus(k.naam) ? '<span class="fedrus-badge">&#x3A6; Fedrus</span>' : '';
     const fedrusRowStyle = isFedrus(k.naam) ? 'border-left:3px solid #C4697A;background:#FDF8F8;' : '';
     return '<tr style="'+fedrusRowStyle+'cursor:pointer" onclick="showKlantDetail(\''+k.nr.replace(/'/g,"\\'")+'\')" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\''+(isFedrus(k.naam)?'#FDF8F8':'var(--surface)')+'\'">'
-      +'<td style="font-family:monospace;font-size:11px;color:var(--teal-mid);white-space:nowrap">'+k.nr+'</td>'
-      +'<td style="font-weight:500">'+k.naam+cross+fedrusBadge+'</td>'
+      +'<td style="font-family:monospace;font-size:11px;color:var(--teal-mid);white-space:nowrap;width:90px">'+k.nr+'</td>'
+      +'<td style="font-weight:500;width:220px"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+k.naam+'</div>'+(cross||fedrusBadge?'<div style="margin-top:2px">'+cross+fedrusBadge+'</div>':'')+'</td>'
       +'<td style="white-space:nowrap">'+buSpans+'</td>'
       +'<td style="text-align:right;font-weight:500">&#8364;'+Math.round(k.omz26).toLocaleString(window.LANG==='en'?'en-GB':window.LANG==='fr'?'fr-BE':'nl-BE')+'</td>'
       +'<td style="text-align:right;color:var(--muted)">&#8364;'+Math.round(k.omz25).toLocaleString(window.LANG==='en'?'en-GB':window.LANG==='fr'?'fr-BE':'nl-BE')+'</td>'
@@ -2897,9 +2897,18 @@ function renderKlantSummary(filtered) {
   const el = document.getElementById('klantSummary');
   if (!el) return;
   if (!filtered.length) { el.innerHTML=''; return; }
+  // Bouw periode-label op basis van geïmporteerde data
+  var periodeVals = Object.values(omzetPeriode).filter(function(v){ return v && v > 0; });
+  var periodeLabel = '';
+  if (periodeVals.length > 0) {
+    var minP = Math.min.apply(null, periodeVals);
+    var maxP = Math.max.apply(null, periodeVals);
+    periodeLabel = minP === maxP ? 'Periode 1\u2013' + maxP : 'Periode 1\u2013' + maxP;
+  }
+  var omzSub = periodeLabel ? t('stat_totaal_klanten') + ' · ' + periodeLabel : t('stat_totaal_klanten');
   el.innerHTML = [
     {label:'Klanten',     val: filtered.length,  sub:'in huidige filter',    clr:'#1A2B4A'},
-    {label:t('col_omzet')+' '+CUR_YEAR, val: fmt(totOmz26), sub:t('stat_totaal_klanten'), clr:'#E87722'},
+    {label:t('col_omzet')+' '+CUR_YEAR, val: fmt(totOmz26), sub: omzSub, clr:'#E87722'},
     {label:t('col_omzet')+' '+PREV_YEAR, val: fmt(totOmz25), sub:t('stat_totaal_klanten'), clr:'#5A6A8A'},
     {label:'Facturen',    val: totFac,            sub:'+ '+totOrd+' orders',  clr:'#1A2B4A'},
   ].map(s=>'<div class="stat-card" style="border-left:3px solid '+s.clr+'">'
@@ -2907,6 +2916,9 @@ function renderKlantSummary(filtered) {
     +'<div class="stat-label">'+s.label+'</div>'
     +'<div class="stat-sub">'+s.sub+'</div>'
     +'</div>').join('');
+  // Update ook de kolomheader
+  var th = document.getElementById('th_omz26');
+  if (th) th.innerHTML = 'Omzet '+CUR_YEAR+(periodeLabel?' <span style="font-size:10px;font-weight:400;opacity:.7">('+periodeLabel+')</span>':'');
 }
 function klantBuFilter(bu,el) {
   klantPage=0;
@@ -4377,6 +4389,8 @@ async function sbLoadSapKlanten(forceRefresh) {
         var cached = localStorage.getItem(CACHE_KEY);
         if (cached) {
           sapKlanten = JSON.parse(cached);
+          // Laad ook omzetPeriode uit cache
+          try { var cp = localStorage.getItem('helicrm_omzetperiode_v1'); if (cp) omzetPeriode = JSON.parse(cp); } catch(e) {}
           console.log('SAP klanten geladen uit cache (' + sapKlanten.length + ' records)');
           return true;
         }
@@ -4409,6 +4423,7 @@ async function sbLoadSapKlanten(forceRefresh) {
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify(sapKlanten));
       localStorage.setItem(CACHE_TS_KEY, Date.now().toString());
+      localStorage.setItem('helicrm_omzetperiode_v1', JSON.stringify(omzetPeriode));
     } catch(e) { console.warn('Cache opslaan mislukt:', e); }
 
     console.log('SAP klanten geladen van Supabase (' + sapKlanten.length + ' records)');
@@ -4734,6 +4749,7 @@ function loadAllFiles() {
         // Wis SAP cache na import zodat verse data geladen wordt
         localStorage.removeItem('helicrm_sap_cache_v1');
         localStorage.removeItem('helicrm_sap_cache_ts_v1');
+        localStorage.removeItem('helicrm_omzetperiode_v1');
         sbSaveContacten().then(function(){
           renderCurrentView(); renderKlanten(); updateNotifBadge();
           if (statusEl) {
@@ -4939,6 +4955,7 @@ function parseOmzetSimple(wb, buKey) {
   var ws = wb.Sheets[wb.SheetNames[0]];
   var rows = XLSX.utils.sheet_to_json(ws, {defval:'', raw:true});
   var byNr = {};
+  var maxPeriode = null;
   rows.forEach(function(row) {
     var jaar  = String(row['Jaar']||'').trim();
     var nr    = String(row['Opdr.gever']||'').trim();
@@ -4951,8 +4968,13 @@ function parseOmzetSimple(wb, buKey) {
     var yr = parseInt(jaar)||0;
     if (yr===CUR_YEAR) byNr[key].omz26+=bedrag; else if (yr===PREV_YEAR) byNr[key].omz25+=bedrag;
     if (String(row['Order']||'').trim()) byNr[key].ord++;
+    // Periode ophalen: gebruik 'Periode' als beschikbaar, anders schat op basis van jaar
+    var p = parseInt(row['Periode']||0);
+    if (yr===CUR_YEAR && p > 0 && (maxPeriode===null || p > maxPeriode)) maxPeriode = p;
   });
   Object.values(byNr).forEach(function(k){ k.omz26=-k.omz26; k.omz25=-k.omz25; });
+  // Sla max periode op
+  if (maxPeriode !== null) omzetPeriode[buKey] = maxPeriode;
   return Object.values(byNr);
 }
 
@@ -4960,6 +4982,7 @@ function parseOmzetFull(wb, buKey) {
   var ws = wb.Sheets[wb.SheetNames[0]];
   var rows = XLSX.utils.sheet_to_json(ws, {defval:'', raw:true});
   var byNr = {};
+  var maxPeriode = null;
   rows.forEach(function(row) {
     var jaar  = String(row['Jaar']||'').trim();
     var nr    = String(row['Opdr.gever']||'').trim();
@@ -4973,8 +4996,13 @@ function parseOmzetFull(wb, buKey) {
     if (yr===CUR_YEAR) byNr[key].omz26+=bedrag; else if (yr===PREV_YEAR) byNr[key].omz25+=bedrag;
     if (String(row['Fact.doc.']||'').trim()) byNr[key].fac++;
     if (String(row['Order']||'').trim()) byNr[key].ord++;
+    // Periode bijhouden
+    var p = parseInt(row['Periode']||0);
+    if (yr===CUR_YEAR && p > 0 && (maxPeriode===null || p > maxPeriode)) maxPeriode = p;
   });
   Object.values(byNr).forEach(function(k){ k.omz26=-k.omz26; k.omz25=-k.omz25; });
+  // Sla max periode op
+  if (maxPeriode !== null) omzetPeriode[buKey] = maxPeriode;
   return Object.values(byNr);
 }
 
