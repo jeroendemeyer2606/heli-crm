@@ -2226,7 +2226,7 @@ function autocompleteContact() {
   var q = inp.value.trim().toLowerCase();
 
   // Haal het geselecteerde bedrijf op
-  var bedrijfNaam = (quickSapKlant ? quickSapKlant.naam : (document.getElementById('quickKlant')?.value || '')).trim();
+  var bedrijfNaam = (selectedSapKlant ? selectedSapKlant.naam : '').trim();
 
   if (q.length < 1) { box.style.display = 'none'; return; }
 
@@ -2300,9 +2300,19 @@ function selectContact(c) {
   if (fContact) { fContact.value = c.naam || ''; fContact.dataset.newContact = ''; }
   if (fEmail)   { fEmail.value   = c.email || ''; fEmail.style.borderColor = ''; }
   if (fTel)     { fTel.value     = c.tel || ''; fTel.style.borderColor = ''; }
-  // Verberg hint
   var hint = document.getElementById('newContactHint');
   if (hint) hint.style.display = 'none';
+  // Auto-vul bedrijf als het nog leeg is en het contact een bedrijf heeft
+  if (c.bedrijf && !selectedSapKlant) {
+    var fBedrijf = document.getElementById('fBedrijf');
+    // Zoek exact SAP-match op naam
+    var sap = sapKlanten.find(function(k){ return k.naam.toLowerCase() === (c.bedrijf||'').toLowerCase(); });
+    if (sap) {
+      selectSapKlant(sap.nr);
+    } else if (fBedrijf) {
+      fBedrijf.value = c.bedrijf;
+    }
+  }
 }
 
 // Sluit autocomplete als elders geklikt
@@ -2806,7 +2816,16 @@ function populateQuickLeadSelect() {
 function renderAllLeads() {
   const q = (document.getElementById('leadsSearch')?.value||'').toLowerCase();
   const filtered = sortLeadsCached(leads.filter(l=>{
-    const mBU = buFilterVals.has('all')||buFilterVals.has(l.bu);
+    const mBU = buFilterVals.has('all') || (function(){
+      if (buFilterVals.size === 1) return buFilterVals.has(l.bu);
+      // AND-logica: lead moet bij een klant horen die actief is bij ALLE geselecteerde BU's
+      if (l.sapNr) {
+        const sap = sapKlanten.find(k=>k.nr===l.sapNr);
+        if (sap) return [...buFilterVals].every(bu => sap.bus.includes(bu));
+      }
+      // Geen SAP-koppeling: toon enkel als de BU van de lead zelf geselecteerd is EN er maar 1 filter actief is
+      return buFilterVals.size === 1 && buFilterVals.has(l.bu);
+    })();
     const mQ = !q||l.bedrijf.toLowerCase().includes(q)||l.id.toLowerCase().includes(q)||(l.contact&&l.contact.toLowerCase().includes(q));
     return mBU&&mQ;
   }),allSort);
@@ -3087,6 +3106,22 @@ function selectSapKlant(nr) {
   selectedSapKlant = k;
   document.getElementById('fBedrijf').value = k.naam;
   document.getElementById('sapSuggest').classList.remove('show');
+  // Wis contact/email/tel als het huidig contact niet bij dit bedrijf hoort
+  var fContact = document.getElementById('fContact');
+  if (fContact && fContact.value.trim()) {
+    var contactNaamLow = fContact.value.trim().toLowerCase();
+    var hoortBij = contacten.some(function(c) {
+      return (c.naam||'').toLowerCase() === contactNaamLow
+          && (c.bedrijf||'').toLowerCase() === k.naam.toLowerCase();
+    });
+    if (!hoortBij) {
+      fContact.value = '';
+      var fEmail = document.getElementById('fEmail');
+      var fTel   = document.getElementById('fTel');
+      if (fEmail) { fEmail.value = ''; fEmail.style.borderColor = ''; }
+      if (fTel)   { fTel.value   = ''; fTel.style.borderColor   = ''; }
+    }
+  }
   const otherBus = k.bus.filter(b=>b!==currentUser.bu);
   const crossHtml = otherBus.length ? '<div class="cross-alert"><strong>Cross-sell signaal</strong> &#8212; ook actief bij: '
     +otherBus.map(b=>'<span class="bu-badge '+BU_CLS[b]+'" style="margin:0 3px">'+BU_MAP[b]+'</span>').join('')+'</div>' : '';
