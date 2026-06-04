@@ -2225,19 +2225,38 @@ function autocompleteContact() {
   if (!inp || !box) return;
   var q = inp.value.trim().toLowerCase();
 
-  // Haal het geselecteerde bedrijf op
-  var bedrijfNaam = (selectedSapKlant ? selectedSapKlant.naam : '').trim();
-
   if (q.length < 1) { box.style.display = 'none'; return; }
 
   var matches;
-  if (bedrijfNaam) {
-    // Bedrijf geselecteerd — toon enkel contacten van dit bedrijf
-    matches = contacten.filter(function(c) {
-      var bedr = (c.bedrijf||'').toLowerCase();
-      var naam = (c.naam||'').toLowerCase();
-      return bedr === bedrijfNaam.toLowerCase() && naam.includes(q);
+  if (selectedSapKlant) {
+    // Bedrijf geselecteerd — bouw een set van bekende contactnamen voor dit bedrijf
+    // via leads die aan dit SAP-nr gekoppeld zijn
+    var sapNr = selectedSapKlant.nr;
+    var sapNaam = selectedSapKlant.naam.toLowerCase();
+    // Contacten die ofwel via bedrijfsnaam ofwel via sapNr (leads) aan dit bedrijf horen
+    var contactNamenVanBedrijf = new Set();
+    leads.forEach(function(l) {
+      if ((l.sapNr && l.sapNr === sapNr) || (l.bedrijf||'').toLowerCase() === sapNaam) {
+        if (l.contact) contactNamenVanBedrijf.add(l.contact.toLowerCase());
+      }
     });
+    // Filter contacten: naam zit in de set EN naam bevat de zoekopdracht
+    matches = contacten.filter(function(c) {
+      var naam = (c.naam||'').toLowerCase();
+      var bedr = (c.bedrijf||'').toLowerCase();
+      var naamMatch = naam.includes(q);
+      // Koppeling via bedrijfsnaam (exact of gedeeltelijk)
+      var bedrijfMatch = bedr === sapNaam || sapNaam.includes(bedr) || bedr.includes(sapNaam.split(' ')[0]);
+      // Koppeling via eerdere acties
+      var leidMatch = contactNamenVanBedrijf.has(naam);
+      return naamMatch && (bedrijfMatch || leidMatch);
+    });
+    // Als geen matches via bedrijf-koppeling, toon toch naamsuggesties maar met bedrijfsnaam erbij
+    if (matches.length === 0) {
+      matches = contacten.filter(function(c) {
+        return (c.naam||'').toLowerCase().includes(q);
+      }).slice(0, 5);
+    }
   } else {
     // Geen bedrijf — zoek op naam of bedrijf
     matches = contacten.filter(function(c) {
