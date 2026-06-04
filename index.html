@@ -1304,8 +1304,15 @@ CREATE TABLE IF NOT EXISTS sap_klanten (
     <div class="modal-footer"><button class="btn" onclick="closeModal('statusModal')">Annuleer</button></div>
   </div>
 </div>
+<div class="modal-overlay" id="crossSellDetailModal" onclick="if(event.target===this)closeModal('crossSellDetailModal')" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:none;align-items:center;justify-content:center">
+  <div class="modal" style="max-width:620px;width:95%;max-height:80vh;display:flex;flex-direction:column">
+    <div class="modal-title" id="csdTitle" style="margin-bottom:4px"></div>
+    <div class="modal-sub" id="csdSub" style="margin-bottom:14px"></div>
+    <div id="csdBody" style="overflow-y:auto;flex:1;border-top:1px solid var(--border);padding-top:12px"></div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('crossSellDetailModal')">Sluiten</button></div>
+  </div>
+</div>
 <script>
-// ── DATA ──────────────────────────────────────────────────────────────────
 const BU_MAP = {Rental:'Rental',Sales:'Sales',Safety:'Safety Academy',HS:'High&Safe'};
 const BU_CLS = {Rental:'bu-Rental',Sales:'bu-Sales',Safety:'bu-Safety',HS:'bu-HS'};
 const STATUS_CLS = {'Nieuw':'s-Nieuw','In behandeling':'s-In-behandeling','Gewonnen':'s-Gewonnen','Verloren':'s-Verloren','Doorgestuurd':'s-Doorgestuurd'};
@@ -2900,7 +2907,10 @@ function leadRow(l,showAssign) {
 function renderKlanten() {
   const q = (document.getElementById('klantSearch')?.value||'').toLowerCase();
   const filtered = sortKlanten(sapKlanten.filter(k=>{
-    const mBU = klantBuFilterVals.has('all')?true:klantBuFilterVals.has('fedrus')?isFedrus(k.naam):klantBuFilterVals.has('cross')?(k.bus.length>1):Array.from(klantBuFilterVals).some(function(f){return k.bus.includes(f);});
+    const mBU = klantBuFilterVals.has('all') ? true
+      : klantBuFilterVals.has('fedrus') ? isFedrus(k.naam)
+      : klantBuFilterVals.has('cross') ? (k.bus.length > 1)
+      : Array.from(klantBuFilterVals).every(function(f){ return k.bus.includes(f); });
     const mQ = !q||k.naam.toLowerCase().includes(q)||k.nr.toLowerCase().includes(q);
     return mBU&&mQ;
   }),klantSort);
@@ -3829,9 +3839,9 @@ function renderBadges() {
       var badge = getCurrentBadge(u.count);
       var rankBg = i < 3 ? rankColors[i] : 'var(--border)';
       var rankColor = i < 3 ? '#fff' : 'var(--muted)';
-      lbHtml += '<div class="lb-row">'
+      lbHtml += '<div class="lb-row" style="cursor:pointer" onclick="showCrossSellDetail('+JSON.stringify(u.name)+')" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">'
         + '<div class="lb-rank" style="background:'+rankBg+';color:'+rankColor+'">'+(i+1)+'</div>'
-        + '<div class="lb-name"'+(u.name===currentUser.name?' style="font-weight:500;color:#E87722"':'')+'>'+u.name+'</div>'
+        + '<div class="lb-name"'+(u.name===currentUser.name?' style="font-weight:500;color:#E87722"':'')+'>'+u.name+' <span style="font-size:11px;color:var(--muted)">&#8599;</span></div>'
         + (badge ? '<div style="display:flex;align-items:center">'+badgeSvg(badge, 16)+'</div>' : '')
         + '<div class="lb-score">'+u.count+' cross-sell'+(u.count!==1?'s':'')+'</div>'
         + '</div>';
@@ -3840,6 +3850,37 @@ function renderBadges() {
   lbHtml += '</div>';
 
   document.getElementById('badgesContent').innerHTML = cardsHtml + lbHtml;
+}
+
+// ── CROSS-SELL DETAIL (leaderboard klik) ─────────────────────────────────
+function showCrossSellDetail(naam) {
+  var items = leads.filter(function(l){ return l.doorgestuurdDoor === naam; })
+    .sort(function(a,b){ return b.datum.localeCompare(a.datum); });
+  document.getElementById('csdTitle').textContent = naam;
+  document.getElementById('csdSub').textContent = items.length + ' cross-sell' + (items.length !== 1 ? 's' : '') + ' verstuurd';
+  if (!items.length) {
+    document.getElementById('csdBody').innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 0">Geen cross-sells gevonden.</div>';
+  } else {
+    var buCls = BU_CLS, buMap = BU_MAP;
+    document.getElementById('csdBody').innerHTML = items.map(function(l) {
+      var sc = l.status === 'Gewonnen' ? '#1E7E4A' : l.status === 'Verloren' ? '#C0392B' : '#185FA5';
+      var statusBg = l.status === 'Gewonnen' ? '#E8F5EE' : l.status === 'Verloren' ? '#FDEDED' : '#E6F1FB';
+      var buBadge = l.bu ? '<span class="bu-badge '+(buCls[l.bu]||'')+'" style="margin-left:6px">'+( buMap[l.bu]||l.bu)+'</span>' : '';
+      return '<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start">'
+        + '<div style="min-width:80px;font-size:11px;color:var(--muted);padding-top:2px">'+l.datum+'</div>'
+        + '<div style="flex:1">'
+        +   '<div style="font-weight:600;font-size:13px;color:var(--ink)">'+esc(l.bedrijf)+buBadge+'</div>'
+        +   (l.contact ? '<div style="font-size:12px;color:var(--muted);margin-top:2px">'+esc(l.contact)+'</div>' : '')
+        +   (l.omschr ? '<div style="font-size:12px;color:var(--subtle);margin-top:4px;font-style:italic">'+esc(l.omschr.substring(0,120))+(l.omschr.length>120?'…':'')+'</div>' : '')
+        + '</div>'
+        + '<div style="min-width:90px;text-align:right">'
+        +   '<span style="font-size:11px;font-weight:600;background:'+statusBg+';color:'+sc+';padding:2px 8px;border-radius:10px">'+esc(l.status)+'</span>'
+        +   (l.assign ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">→ '+esc(l.assign)+'</div>' : '')
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+  openModal('crossSellDetailModal');
 }
 
 // ── LOCAL STORAGE ────────────────────────────────────────────────────────
