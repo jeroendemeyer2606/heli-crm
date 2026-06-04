@@ -564,7 +564,14 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
       </div>
       <div style="height:16px"></div>
       <div class="form-grid">
-        <div class="form-group" style="position:relative"><label class="form-label" data-i18n="lbl_contactpersoon">Contactpersoon</label><input class="form-input" id="fContact" data-i18n-ph="ph_naam" placeholder="Naam" oninput="autocompleteContact()" autocomplete="off"/><div id="contactSuggest" style="position:absolute;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.15);max-height:220px;overflow-y:auto;display:none;left:0;right:0;top:100%"></div></div>
+        <div class="form-group" style="position:relative">
+          <label class="form-label" data-i18n="lbl_contactpersoon">Contactpersoon</label>
+          <div style="position:relative">
+            <input class="form-input" id="fContact" data-i18n-ph="ph_naam" placeholder="Naam" oninput="autocompleteContact()" onfocus="autocompleteContactFocus()" autocomplete="off" style="padding-right:30px"/>
+            <span id="fContactChevron" onclick="toggleContactDropdown()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:11px;user-select:none">▼</span>
+          </div>
+          <div id="contactSuggest" style="position:absolute;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.15);max-height:240px;overflow-y:auto;display:none;left:0;right:0;top:100%"></div>
+        </div>
         <div class="form-group"><label class="form-label">E-mail</label><input class="form-input" id="fEmail" type="email" placeholder="email@bedrijf.be" oninput="this.style.borderColor=''"/></div>
         <div class="form-group"><label class="form-label" data-i18n="col_telefoon">Telefoon</label><input class="form-input" id="fTel" placeholder="+32 ..." oninput="this.style.borderColor=''"/></div>
         <div id="newContactHint" style="display:none;grid-column:1/-1;background:#FFF8F0;border:1px solid var(--orange);border-radius:var(--radius);padding:8px 12px;font-size:12px;color:var(--orange)">
@@ -2226,72 +2233,80 @@ let klantSort = {col:'omz26',dir:'desc'};
 let selectedSapKlant = null;
 
 // ── CONTACT AUTOCOMPLETE ─────────────────────────────────────────────────
-function autocompleteContact() {
+function autocompleteContactFocus() {
+  // Bij focus: toon meteen alle contacten van het geselecteerde bedrijf (of top-8 als geen bedrijf)
+  var inp = document.getElementById('fContact');
+  var q = (inp ? inp.value.trim().toLowerCase() : '');
+  autocompleteContactShow(q, true);
+}
+
+function toggleContactDropdown() {
+  var box = document.getElementById('contactSuggest');
+  if (box && box.style.display !== 'none') {
+    box.style.display = 'none';
+  } else {
+    document.getElementById('fContact').focus();
+    autocompleteContactShow('', true);
+  }
+}
+
+function autocompleteContactShow(q, showAll) {
   var inp = document.getElementById('fContact');
   var box = document.getElementById('contactSuggest');
   if (!inp || !box) return;
-  var q = inp.value.trim().toLowerCase();
-
-  if (q.length < 1) { box.style.display = 'none'; return; }
 
   var matches;
   if (selectedSapKlant) {
-    // Bedrijf geselecteerd — bouw een set van bekende contactnamen voor dit bedrijf
-    // via leads die aan dit SAP-nr gekoppeld zijn
-    var sapNr = selectedSapKlant.nr;
+    var sapNr  = selectedSapKlant.nr;
     var sapNaam = selectedSapKlant.naam.toLowerCase();
-    // Contacten die ofwel via bedrijfsnaam ofwel via sapNr (leads) aan dit bedrijf horen
+    // Bouw set van contactnamen gekoppeld via leads
     var contactNamenVanBedrijf = new Set();
     leads.forEach(function(l) {
       if ((l.sapNr && l.sapNr === sapNr) || (l.bedrijf||'').toLowerCase() === sapNaam) {
         if (l.contact) contactNamenVanBedrijf.add(l.contact.toLowerCase());
       }
     });
-    // Filter contacten: naam zit in de set EN naam bevat de zoekopdracht
+    // Filter contacten op bedrijf
     matches = contacten.filter(function(c) {
       var naam = (c.naam||'').toLowerCase();
       var bedr = (c.bedrijf||'').toLowerCase();
-      var naamMatch = naam.includes(q);
-      // Koppeling via bedrijfsnaam (exact of gedeeltelijk)
       var bedrijfMatch = bedr === sapNaam || sapNaam.includes(bedr) || bedr.includes(sapNaam.split(' ')[0]);
-      // Koppeling via eerdere acties
-      var leidMatch = contactNamenVanBedrijf.has(naam);
+      var leidMatch    = contactNamenVanBedrijf.has(naam);
+      var naamMatch    = !q || naam.includes(q);
       return naamMatch && (bedrijfMatch || leidMatch);
     });
-    // Als geen matches via bedrijf-koppeling, toon toch naamsuggesties maar met bedrijfsnaam erbij
-    if (matches.length === 0) {
-      matches = contacten.filter(function(c) {
-        return (c.naam||'').toLowerCase().includes(q);
-      }).slice(0, 5);
+    // Fallback als geen bedrijfskoppeling
+    if (matches.length === 0 && q) {
+      matches = contacten.filter(function(c){ return (c.naam||'').toLowerCase().includes(q); }).slice(0,6);
     }
   } else {
-    // Geen bedrijf — zoek op naam of bedrijf
+    if (!q && !showAll) { box.style.display = 'none'; return; }
     matches = contacten.filter(function(c) {
-      var naam = (c.naam||'').toLowerCase();
-      var bedr = (c.bedrijf||'').toLowerCase();
-      return naam.includes(q) || bedr.includes(q);
-    });
+      return !q || (c.naam||'').toLowerCase().includes(q) || (c.bedrijf||'').toLowerCase().includes(q);
+    }).slice(0, 8);
   }
-  matches = matches.slice(0, 8);
 
-  // Check of naam exact overeenkomt met bestaand contact
-  var exactMatch = contacten.find(function(c) {
-    return (c.naam||'').toLowerCase() === q;
-  });
+  // Sorteer op naam
+  matches = matches.slice().sort(function(a,b){ return (a.naam||'').localeCompare(b.naam||''); }).slice(0, 20);
+
+  var exactMatch = q ? contacten.find(function(c){ return (c.naam||'').toLowerCase() === q; }) : null;
 
   var html = matches.map(function(c) {
-    return '<div onclick="selectContact(' + JSON.stringify(c).replace(/"/g,'&quot;') + ')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border)"'
-      + ' onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">'
-      + '<div style="font-size:13px;font-weight:600;color:var(--ink)">' + esc(c.naam) + '</div>'
-      + '<div style="font-size:11px;color:var(--muted)">' + esc(c.bedrijf||'') + (c.functie ? ' · ' + esc(c.functie) : '') + '</div>'
+    var highlighted = q ? esc(c.naam).replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<strong>$1</strong>') : esc(c.naam);
+    return '<div onclick="selectContact('+JSON.stringify(c).replace(/"/g,'&quot;')+')" '
+      + 'style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border)" '
+      + 'onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">'
+      + '<div style="font-size:13px;font-weight:600;color:var(--ink)">'+highlighted+'</div>'
+      + '<div style="font-size:11px;color:var(--muted)">'+(c.bedrijf ? esc(c.bedrijf) : '')+(c.functie?' · '+esc(c.functie):'')+'</div>'
       + '</div>';
   }).join('');
 
-  // Toon "nieuw contact aanmaken" optie als naam niet exact overeenkomt
-  if (!exactMatch && q.length >= 2) {
-    html += '<div onclick="prepareNewContact()" style="padding:10px 12px;cursor:pointer;border-top:1px solid var(--border);background:var(--bg)"'
-      + ' onmouseover="this.style.opacity=\'0.8\'" onmouseout="this.style.opacity=\'1\'">'
-      + '<div style="font-size:12px;color:var(--orange);font-weight:600">+ Nieuw contact aanmaken: <em>' + esc(inp.value.trim()) + '</em></div>'
+  // "Nieuw contact aanmaken" optie
+  if (!exactMatch && q && q.length >= 2) {
+    html += '<div onclick="prepareNewContact()" '
+      + 'style="padding:9px 12px;cursor:pointer;border-top:1px solid var(--border);background:var(--bg)" '
+      + 'onmouseover="this.style.opacity=\'0.8\'" onmouseout="this.style.opacity=\'1\'">'
+      + '<div style="font-size:12px;color:var(--orange);font-weight:600">+ Nieuw contact aanmaken: <em>'+esc(inp.value.trim())+'</em></div>'
       + '<div style="font-size:11px;color:var(--muted)">Vul e-mail en telefoon in — wordt automatisch opgeslagen</div>'
       + '</div>';
   }
@@ -2299,6 +2314,12 @@ function autocompleteContact() {
   if (!html) { box.style.display = 'none'; return; }
   box.innerHTML = html;
   box.style.display = 'block';
+}
+
+function autocompleteContact() {
+  var inp = document.getElementById('fContact');
+  if (!inp) return;
+  autocompleteContactShow(inp.value.trim().toLowerCase(), false);
 }
 
 function prepareNewContact() {
@@ -2844,13 +2865,13 @@ function renderAllLeads() {
   const filtered = sortLeadsCached(leads.filter(l=>{
     const mBU = buFilterVals.has('all') || (function(){
       if (buFilterVals.size === 1) return buFilterVals.has(l.bu);
-      // AND-logica: lead moet bij een klant horen die actief is bij ALLE geselecteerde BU's
-      if (l.sapNr) {
-        const sap = sapKlanten.find(k=>k.nr===l.sapNr);
-        if (sap) return [...buFilterVals].every(bu => sap.bus.includes(bu));
-      }
-      // Geen SAP-koppeling: toon enkel als de BU van de lead zelf geselecteerd is EN er maar 1 filter actief is
-      return buFilterVals.size === 1 && buFilterVals.has(l.bu);
+      // AND-logica: zoek SAP-klant via sapNr of via bedrijfsnaam
+      var sap = null;
+      if (l.sapNr) sap = sapKlanten.find(k => k.nr === l.sapNr);
+      if (!sap && l.bedrijf) sap = sapKlanten.find(k => k.naam.toLowerCase() === l.bedrijf.toLowerCase());
+      if (sap) return [...buFilterVals].every(bu => sap.bus.includes(bu));
+      // Geen SAP-match: verberg bij meerdere filters
+      return false;
     })();
     const mQ = !q||l.bedrijf.toLowerCase().includes(q)||l.id.toLowerCase().includes(q)||(l.contact&&l.contact.toLowerCase().includes(q));
     return mBU&&mQ;
