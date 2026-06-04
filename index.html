@@ -459,8 +459,8 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
 <div class="sidebar">
   <div class="sidebar-section" data-i18n="menu">Menu</div>
   <div class="nav-item active" id="nav-dashboard" data-i18n-nav="nav_dashboard" onclick="navTo('dashboard')"><span class="nav-icon">&#128202;</span>Dashboard</div>
-  <div class="nav-item" id="nav-nieuw" data-i18n-nav="nav_nieuw" onclick="navTo('nieuw')"><span class="nav-icon">&#10010;</span>Nieuw bezoek</div>
-  <div class="nav-item" id="nav-leads" data-i18n-nav="nav_leads" onclick="navTo('leads')"><span class="nav-icon">&#128203;</span>Alle bezoeken</div>
+  <div class="nav-item" id="nav-nieuw" data-i18n-nav="nav_nieuw" onclick="navTo('nieuw')"><span class="nav-icon">&#10010;</span>Nieuwe actie</div>
+  <div class="nav-item" id="nav-leads" data-i18n-nav="nav_leads" onclick="navTo('leads')"><span class="nav-icon">&#128203;</span>Alle acties</div>
   <div class="nav-item" id="nav-klanten" data-i18n-nav="nav_klanten" onclick="navTo('klanten')"><span class="nav-icon">&#127970;</span>Klanten (SAP)</div>
   <div class="nav-item" id="nav-contacten" data-i18n-nav="nav_contacten" onclick="navTo('contacten')"><span class="nav-icon">&#128100;</span>Contacten</div>
   <div class="nav-item" id="nav-notifs" data-i18n-nav="nav_notifs" onclick="navTo('notifs')"><span class="nav-icon">&#128276;</span><span data-i18n="nav_notifs">Notificaties</span><span class="nav-badge" id="navNotifBadge"></span></div>
@@ -476,7 +476,7 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
       <button onclick="clearData()" style="font-size:10px;color:rgba(255,255,255,0.3);background:none;border:none;cursor:pointer;padding:0" title="Lokale data wissen">&#128465;</button>
     </div>
     <div id="autoRefreshLabel" style="font-size:10px;color:rgba(255,255,255,0.3);margin-bottom:6px;text-align:center"></div>
-    <button onclick="sbLoadAll()" style="width:100%;padding:5px 10px;font-size:11px;font-weight:600;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:var(--radius);cursor:pointer;font-family:var(--font-body);margin-bottom:6px">&#128257; <span data-i18n="btn_data_verversen">Data verversen</span></button>
+    <button onclick="clearCacheAndRefresh()" style="width:100%;padding:5px 10px;font-size:11px;font-weight:600;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:var(--radius);cursor:pointer;font-family:var(--font-body);margin-bottom:6px">&#128257; <span data-i18n="btn_data_verversen">Data verversen</span></button>
     <button id="exportBtn" onclick="exportCrmExcel()" style="width:100%;padding:6px 10px;font-size:11px;font-weight:600;background:#E87722;color:#fff;border:none;border-radius:var(--radius);cursor:pointer;font-family:var(--font-body);margin-bottom:10px;display:none">&#128229; <span data-i18n="btn_exporteer">Exporteer bezoeken (.xlsx)</span></button>
   </div>
 </div>
@@ -485,7 +485,7 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
   <div class="view active" id="view-dashboard">
     <div class="page-header">
       <div><div class="page-title" id="dashTitle">Welkom, Marcel Seijkens</div><div class="page-sub" id="dashDateSub">Vandaag, 15 april 2026</div></div>
-      <button class="btn btn-primary" data-i18n="btn_nieuw_bezoek" onclick="navTo('nieuw')">+ Nieuw bezoek</button>
+      <button class="btn btn-primary" data-i18n="btn_nieuw_bezoek" onclick="navTo('nieuw')">+ Nieuwe actie</button>
     </div>
     <div class="stats-row" id="statsRow"></div>
     <div class="quick-log">
@@ -494,6 +494,9 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
         <button class="type-btn" data-i18n="btn_telefoon" onclick="selType('telefoon',this)">&#128222; Telefoon</button>
         <button class="type-btn" data-i18n="btn_bezoek_kantoor" onclick="selType('bezoek-kantoor',this)">&#127970; Bezoek kantoor</button>
         <button class="type-btn" onclick="selType('bezoek-werf',this)"><svg width="13" height="15" viewBox="0 0 13 15" style="vertical-align:-3px;margin-right:3px"><polygon points="6.5,0 11,13 2,13" fill="#E87722"/><polygon points="6.5,3.5 9,10 4,10" fill="white" opacity="0.5"/><rect x="1" y="13" width="11" height="2" rx="1" fill="#E87722"/></svg><span data-i18n="btn_bezoek_werf_txt">Bezoek op werf</span></button>
+        <button class="type-btn" onclick="selType('mail',this)">&#128140; Mail</button>
+        <button class="type-btn" onclick="selType('teams',this)">&#128187; Teams</button>
+        <button class="type-btn" onclick="selType('offerte',this)">&#128196; Offerte verstuurd</button>
       </div>
       <div class="quick-fields" id="quickFields">
         <div class="sap-search-wrap" style="min-width:200px">
@@ -546,7 +549,7 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
 
   <div class="view" id="view-nieuw">
     <div class="page-header">
-      <div><div class="page-title" data-i18n="nav_nieuw">Nieuw bezoek</div><div class="page-sub">Zoek eerst op klantnaam of SAP-nummer</div></div>
+      <div><div class="page-title" data-i18n="nav_nieuw">Nieuwe actie</div><div class="page-sub">Zoek eerst op klantnaam of SAP-nummer</div></div>
       <div class="lead-nr-display" id="newLeadNr">HELI-2026-0001</div>
     </div>
     <div class="info-box" data-i18n="info_nieuw_bezoek">Typ de bedrijfsnaam of het SAP-klantnummer — bestaande klanten worden automatisch herkend.</div>
@@ -586,6 +589,9 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
           <button class="type-btn" data-i18n="btn_telefoon" onclick="selNieuwType('telefoon',this)">&#128222; Telefoon</button>
           <button class="type-btn" data-i18n="btn_bezoek_kantoor" onclick="selNieuwType('bezoek-kantoor',this)">&#127970; Bezoek kantoor</button>
           <button class="type-btn" onclick="selNieuwType('bezoek-werf',this)"><svg width="13" height="15" viewBox="0 0 13 15" style="vertical-align:-3px;margin-right:3px"><polygon points="6.5,0 11,13 2,13" fill="#E87722"/><polygon points="6.5,3.5 9,10 4,10" fill="white" opacity="0.5"/><rect x="1" y="13" width="11" height="2" rx="1" fill="#E87722"/></svg><span data-i18n="btn_bezoek_werf_txt">Bezoek op werf</span></button>
+          <button class="type-btn" onclick="selNieuwType('mail',this)">&#128140; Mail</button>
+          <button class="type-btn" onclick="selNieuwType('teams',this)">&#128187; Teams</button>
+          <button class="type-btn" onclick="selNieuwType('offerte',this)">&#128196; Offerte verstuurd</button>
         </div>
       </div>
       <div class="form-group full">
@@ -600,8 +606,8 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
 
   <div class="view" id="view-leads">
     <div class="page-header">
-      <div><div class="page-title" data-i18n="nav_leads">Alle bezoeken</div><div class="page-sub" id="allLeadsSub"></div></div>
-      <button class="btn btn-primary" data-i18n="btn_nieuw_bezoek" onclick="navTo('nieuw')">+ Nieuw bezoek</button>
+      <div><div class="page-title" data-i18n="nav_leads">Alle acties</div><div class="page-sub" id="allLeadsSub"></div></div>
+      <button class="btn btn-primary" data-i18n="btn_nieuw_bezoek" onclick="navTo('nieuw')">+ Nieuwe actie</button>
     </div>
     <div class="section-hdr">
       <div class="filter-row" id="buFilters">
@@ -1304,7 +1310,7 @@ CREATE TABLE IF NOT EXISTS sap_klanten (
 const BU_MAP = {Rental:'Rental',Sales:'Sales',Safety:'Safety Academy',HS:'High&Safe'};
 const BU_CLS = {Rental:'bu-Rental',Sales:'bu-Sales',Safety:'bu-Safety',HS:'bu-HS'};
 const STATUS_CLS = {'Nieuw':'s-Nieuw','In behandeling':'s-In-behandeling','Gewonnen':'s-Gewonnen','Verloren':'s-Verloren','Doorgestuurd':'s-Doorgestuurd'};
-const TYPE_LABELS = {'telefoon':'Telefonisch contact','bezoek-kantoor':'Bezoek op kantoor','bezoek-werf':'Bezoek op werf','cross-sell':'Cross-sell opportuniteit','cs-vraag':'Klantvraag via CS'};
+const TYPE_LABELS = {'telefoon':'Telefonisch contact','bezoek-kantoor':'Bezoek op kantoor','bezoek-werf':'Bezoek op werf','cross-sell':'Cross-sell opportuniteit','cs-vraag':'Klantvraag via CS','mail':'Mail','teams':'Teams','offerte':'Offerte verstuurd'};
 const TYPE_ICONS = {'telefoon':'&#128222;','bezoek-kantoor':'&#127970;','bezoek-werf':'&#128119;','cross-sell':'&#8646;','cs-vraag':'&#128101;'};
 const PRIO_ORDER = {Dringend:0,Hoog:1,Normaal:2};
 const STATUS_ORDER = {'Nieuw':0,'In behandeling':1,'Doorgestuurd':2,'Gewonnen':3,'Verloren':4};
@@ -1324,7 +1330,7 @@ let leads = [];
 let notifs = [];
 let contacten = [];
 let leadCounter = 1;
-var contactBuFilterVal = 'all';
+var contactBuFilterVals = new Set(['all']);
 var editContactId = null;
 // ── AUTHENTICATIE & GEBRUIKERSBEHEER ─────────────────────────────────────
 const LS_PASSWORDS  = 'helicrm_passwords_v1';
@@ -2205,8 +2211,8 @@ let statusLeadId = null;
 let prevView = 'dashboard';
 let detailLeadId = null;
 let dashStatusFilter = 'all';
-let buFilterVal = 'all';
-let klantBuFilterVal = 'all';
+let buFilterVals = new Set(['all']);
+let klantBuFilterVals = new Set(['all']);
 let dashSort = {col:'datum',dir:'desc'};
 let allSort = {col:'datum',dir:'desc'};
 let klantSort = {col:'omz26',dir:'desc'};
@@ -2534,6 +2540,16 @@ async function mailFeedbackNieuw(adminEmail, indiener, titel, type, prio) {
   return sendResendMail(adminEmail, 'Administrator', '🔔 Nieuwe melding: ' + titel, html);
 }
 
+function clearCacheAndRefresh() {
+  // Wis alle caches zodat verse data van Supabase geladen wordt
+  ['helicrm_leads_cache_v1','helicrm_leads_cache_ts_v1',
+   'helicrm_sap_cache_v1','helicrm_sap_cache_ts_v1',
+   'helicrm_contacten_cache_v1','helicrm_contacten_cache_ts_v1'].forEach(function(k) {
+    localStorage.removeItem(k);
+  });
+  sbLoadAll();
+}
+
 // ── PERFORMANCE HELPERS ───────────────────────────────────────────────────
 
 // Render alleen de actieve view in plaats van alles tegelijk
@@ -2639,7 +2655,21 @@ function renderPagination(total, page, infoId, numId, prevId, nextId, pagId, lab
 
 // Reset pagina bij filter/zoek wijzigingen
 function dashFilter(s,el){dashStatusFilter=s;dashPage=0;document.querySelectorAll('#dashFilters .filter-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderDashboard();}
-function buFilter(bu,el){buFilterVal=bu;allPage=0;document.querySelectorAll('#buFilters .filter-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderAllLeads();}
+function buFilter(bu,el) {
+  allPage=0;
+  if (bu==='all') {
+    buFilterVals = new Set(['all']);
+    document.querySelectorAll('#buFilters .filter-btn').forEach(b=>b.classList.remove('active'));
+    el.classList.add('active');
+  } else {
+    buFilterVals.delete('all');
+    document.querySelector('#buFilters .filter-btn').classList.remove('active');
+    if (buFilterVals.has(bu)) { buFilterVals.delete(bu); el.classList.remove('active'); }
+    else { buFilterVals.add(bu); el.classList.add('active'); }
+    if (buFilterVals.size===0) { buFilterVals.add('all'); document.querySelector('#buFilters .filter-btn').classList.add('active'); }
+  }
+  renderAllLeads();
+}
 
 // ── NAVTO ─────────────────────────────────────────────────────────────────
 function navTo(view) {
@@ -2776,7 +2806,7 @@ function populateQuickLeadSelect() {
 function renderAllLeads() {
   const q = (document.getElementById('leadsSearch')?.value||'').toLowerCase();
   const filtered = sortLeadsCached(leads.filter(l=>{
-    const mBU = buFilterVal==='all'||l.bu===buFilterVal;
+    const mBU = buFilterVals.has('all')||buFilterVals.has(l.bu);
     const mQ = !q||l.bedrijf.toLowerCase().includes(q)||l.id.toLowerCase().includes(q)||(l.contact&&l.contact.toLowerCase().includes(q));
     return mBU&&mQ;
   }),allSort);
@@ -2832,7 +2862,7 @@ function leadRow(l,showAssign) {
 function renderKlanten() {
   const q = (document.getElementById('klantSearch')?.value||'').toLowerCase();
   const filtered = sortKlanten(sapKlanten.filter(k=>{
-    const mBU = klantBuFilterVal==='all'?true:klantBuFilterVal==='fedrus'?isFedrus(k.naam):klantBuFilterVal==='cross'?k.bus.length>1:k.bus.includes(klantBuFilterVal);
+    const mBU = klantBuFilterVals.has('all')?true:klantBuFilterVals.has('fedrus')?isFedrus(k.naam):klantBuFilterVals.has('cross')?(k.bus.length>1):Array.from(klantBuFilterVals).some(function(f){return k.bus.includes(f);});
     const mQ = !q||k.naam.toLowerCase().includes(q)||k.nr.toLowerCase().includes(q);
     return mBU&&mQ;
   }),klantSort);
@@ -2878,7 +2908,21 @@ function renderKlantSummary(filtered) {
     +'<div class="stat-sub">'+s.sub+'</div>'
     +'</div>').join('');
 }
-function klantBuFilter(bu,el){klantBuFilterVal=bu;klantPage=0;document.querySelectorAll('#klantBuFilters .filter-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderKlanten();}
+function klantBuFilter(bu,el) {
+  klantPage=0;
+  if (bu==='all') {
+    klantBuFilterVals = new Set(['all']);
+    document.querySelectorAll('#klantBuFilters .filter-btn').forEach(b=>b.classList.remove('active'));
+    el.classList.add('active');
+  } else {
+    klantBuFilterVals.delete('all');
+    document.querySelector('#klantBuFilters .filter-btn').classList.remove('active');
+    if (klantBuFilterVals.has(bu)) { klantBuFilterVals.delete(bu); el.classList.remove('active'); }
+    else { klantBuFilterVals.add(bu); el.classList.add('active'); }
+    if (klantBuFilterVals.size===0) { klantBuFilterVals.add('all'); document.querySelector('#klantBuFilters .filter-btn').classList.add('active'); }
+  }
+  renderKlanten();
+}
 
 function showKlantDetail(nr) {
   var k = sapKlanten.find(function(x){ return x.nr === nr; });
@@ -2956,6 +3000,32 @@ function showKlantDetail(nr) {
   document.getElementById('klantDetailOverlay').style.display = 'flex';
 }
 
+function nieuweActieVanuitContact(contactNaam, bedrijfNaam, email, tel) {
+  navTo('nieuw');
+  setTimeout(function() {
+    // Vul bedrijf in
+    var klantInput = document.getElementById('quickKlant');
+    if (klantInput && bedrijfNaam) {
+      klantInput.value = bedrijfNaam;
+      onQuickKlantSearch(bedrijfNaam);
+      // Probeer SAP klant te matchen
+      var sapMatch = sapKlanten.find(function(k) {
+        return k.naam.toLowerCase() === bedrijfNaam.toLowerCase();
+      });
+      if (sapMatch) {
+        selectQuickKlant(sapMatch.nr);
+      }
+    }
+    // Vul contact in
+    var fContact = document.getElementById('fContact');
+    var fEmail = document.getElementById('fEmail');
+    var fTel = document.getElementById('fTel');
+    if (fContact && contactNaam) fContact.value = contactNaam;
+    if (fEmail && email) fEmail.value = email;
+    if (fTel && tel) fTel.value = tel;
+  }, 100);
+}
+
 function zoekBezoeken(bedrijfNaam) {
   navTo('leads');
   setTimeout(function(){
@@ -2964,7 +3034,21 @@ function zoekBezoeken(bedrijfNaam) {
   }, 50);
 }
 
-function contactBuFilter(bu,el){contactBuFilterVal=bu;contactPage=0;document.querySelectorAll('#contactBuFilters .filter-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderContacten();}
+function contactBuFilter(bu,el) {
+  contactPage=0;
+  if (bu==='all') {
+    contactBuFilterVals = new Set(['all']);
+    document.querySelectorAll('#contactBuFilters .filter-btn').forEach(b=>b.classList.remove('active'));
+    el.classList.add('active');
+  } else {
+    contactBuFilterVals.delete('all');
+    document.querySelector('#contactBuFilters .filter-btn').classList.remove('active');
+    if (contactBuFilterVals.has(bu)) { contactBuFilterVals.delete(bu); el.classList.remove('active'); }
+    else { contactBuFilterVals.add(bu); el.classList.add('active'); }
+    if (contactBuFilterVals.size===0) { contactBuFilterVals.add('all'); document.querySelector('#contactBuFilters .filter-btn').classList.add('active'); }
+  }
+  renderContacten();
+}
 
 // ── SAP SEARCH ────────────────────────────────────────────────────────────
 function onBedrijfSearch(val) {
@@ -3065,7 +3149,7 @@ function saveLead() {
              (c.bedrijf||'').toLowerCase() === bedrijf.toLowerCase();
     });
     if (!bestaatAl) {
-      contacten.unshift({
+      var nieuwContact = {
         id: 'c' + Date.now(),
         naam: contactNaam,
         bedrijf: bedrijf,
@@ -3073,10 +3157,21 @@ function saveLead() {
         functie: '',
         email: contactEmail,
         tel: contactTel,
-        note: '',
+        notitie: '',
         aangemaakt: new Date().toISOString()
-      });
+      };
+      contacten.unshift(nieuwContact);
       saveContacten();
+      // Sla ook op in Supabase en update cache
+      if (typeof sbSaveContacten === 'function') {
+        sbSaveContacten().then(function() {
+          // Update cache na succesvolle Supabase save
+          try {
+            localStorage.setItem('helicrm_contacten_cache_v1', JSON.stringify(contacten));
+            localStorage.setItem('helicrm_contacten_cache_ts_v1', Date.now().toString());
+          } catch(e) {}
+        }).catch(function(e){ console.warn('Contact Supabase save fout:', e); });
+      }
     }
   }
 
@@ -3720,8 +3815,8 @@ window.TRANSLATIONS = {
     vandaag: 'Vandaag', gisteren: 'Gisteren',
     // nav
     menu: 'Menu', beheer: 'Beheer',
-    nav_dashboard: 'Dashboard', nav_nieuw: 'Nieuw bezoek',
-    nav_leads: 'Alle bezoeken', nav_klanten: 'Klanten (SAP)',
+    nav_dashboard: 'Dashboard', nav_nieuw: 'Nieuwe actie',
+    nav_leads: 'Alle acties', nav_klanten: 'Klanten (SAP)',
     nav_contacten: 'Contacten', nav_notifs: 'Notificaties',
     nav_import: 'SAP-import', nav_badges: 'Badges', nav_team: 'Team',
     // page subs
@@ -3748,7 +3843,7 @@ window.TRANSLATIONS = {
     col_klantnaam: 'Klantnaam', col_actief_bij: 'Actief bij',
     col_facturen: 'Facturen', col_naam: 'Naam', col_telefoon: 'Telefoon',
     // buttons
-    btn_nieuw_bezoek: '+ Nieuw bezoek', btn_bezoek_opslaan: 'Bezoek opslaan',
+    btn_nieuw_bezoek: '+ Nieuwe actie', btn_bezoek_opslaan: 'Bezoek opslaan',
     btn_bekijk_klanten: 'Bekijk klanten', btn_bekijk_contacten: 'Bekijk contacten',
     btn_nieuw_contact: '+ Nieuw contact', btn_importeren: 'Importeren →',
     btn_alles_gelezen: 'Alles als gelezen',
@@ -3814,7 +3909,7 @@ window.TRANSLATIONS = {
     // kolommen
     col_datum: 'Datum', col_door: 'Door',
     // secties
-    alle_bezoeken_titel: 'Alle bezoeken',
+    alle_bezoeken_titel: 'Alle acties',
     nav_admin: 'Gebruikersbeheer',
     notifs_sub_zero: 'Geen ongelezen meldingen',
   },
@@ -3847,8 +3942,8 @@ window.TRANSLATIONS = {
     f_cs_vragen: '👥 Questions CS',
     vandaag: 'Aujourd\'hui', gisteren: 'Hier',
     menu: 'Menu', beheer: 'Gestion',
-    nav_dashboard: 'Tableau de bord', nav_nieuw: 'Nouvelle visite',
-    nav_leads: 'Toutes les visites', nav_klanten: 'Clients (SAP)',
+    nav_dashboard: 'Tableau de bord', nav_nieuw: 'Nouvelle action',
+    nav_leads: 'Toutes les actions', nav_klanten: 'Clients (SAP)',
     nav_contacten: 'Contacts', nav_notifs: 'Notifications',
     nav_import: 'Import SAP', nav_badges: 'Badges', nav_team: 'Équipe',
     nieuw_sub: 'Cherchez d\'abord par nom de client ou numéro SAP',
@@ -3858,7 +3953,7 @@ window.TRANSLATIONS = {
     col_waarde: 'Valeur', col_prioriteit: 'Priorité', col_acties: 'Actions',
     col_klantnaam: 'Nom client', col_actief_bij: 'Actif chez',
     col_facturen: 'Factures', col_naam: 'Nom', col_telefoon: 'Téléphone',
-    btn_nieuw_bezoek: '+ Nouvelle visite',
+    btn_nieuw_bezoek: '+ Nouvelle action',
     menu: 'MENU', beheer: 'GESTION', btn_bezoek_opslaan: 'Enregistrer la visite',
     btn_bekijk_klanten: 'Voir clients', btn_bekijk_contacten: 'Voir contacts',
     btn_nieuw_contact: '+ Nouveau contact', btn_importeren: 'Importer →',
@@ -3948,7 +4043,7 @@ window.TRANSLATIONS = {
     // overig
     geen_bezoeken: 'Aucune visite trouvée',
     geen_contacten: 'Aucun contact trouvé',
-    btn_nieuw_bezoek: '+ Nouvelle visite',
+    btn_nieuw_bezoek: '+ Nouvelle action',
     btn_bezoek_opslaan: 'Enregistrer la visite',
     lbl_bedrijf_sap: "Nom de l'entreprise ou numéro SAP",
     info_nieuw_bezoek: "Saisissez le nom de l'entreprise ou le numéro client SAP.",
@@ -3984,8 +4079,8 @@ window.TRANSLATIONS = {
     f_cs_vragen: '👥 CS questions',
     vandaag: 'Today', gisteren: 'Yesterday',
     menu: 'Menu', beheer: 'Management',
-    nav_dashboard: 'Dashboard', nav_nieuw: 'New visit',
-    nav_leads: 'All visits', nav_klanten: 'Customers (SAP)',
+    nav_dashboard: 'Dashboard', nav_nieuw: 'New action',
+    nav_leads: 'All actions', nav_klanten: 'Customers (SAP)',
     nav_contacten: 'Contacts', nav_notifs: 'Notifications',
     nav_import: 'SAP import', nav_badges: 'Badges', nav_team: 'Team',
     nieuw_sub: 'Search first by customer name or SAP number',
@@ -3995,7 +4090,7 @@ window.TRANSLATIONS = {
     col_waarde: 'Value', col_prioriteit: 'Priority', col_acties: 'Actions',
     col_klantnaam: 'Customer name', col_actief_bij: 'Active at',
     col_facturen: 'Invoices', col_naam: 'Name', col_telefoon: 'Phone',
-    btn_nieuw_bezoek: '+ New visit',
+    btn_nieuw_bezoek: '+ New action',
     menu: 'MENU', beheer: 'MANAGEMENT', btn_bezoek_opslaan: 'Save visit',
     btn_bekijk_klanten: 'View customers', btn_bekijk_contacten: 'View contacts',
     btn_nieuw_contact: '+ New contact', btn_importeren: 'Import →',
@@ -4081,7 +4176,7 @@ window.TRANSLATIONS = {
     // misc
     geen_bezoeken: 'No visits found',
     geen_contacten: 'No contacts found',
-    btn_nieuw_bezoek: '+ New visit',
+    btn_nieuw_bezoek: '+ New action',
     menu: 'MENU', beheer: 'MANAGEMENT',
     btn_bezoek_opslaan: 'Save visit',
     lbl_bedrijf_sap: 'Company name or SAP number',
@@ -4199,9 +4294,31 @@ function getSbClient() {
 }
 
 // ── SUPABASE DATA OPHALEN ─────────────────────────────────────────────────
-async function sbLoadLeads() {
+async function sbLoadLeads(forceRefresh) {
   var db = getSbClient();
   if (!db) return false;
+
+  // Cache voor 15 minuten (leads veranderen vaker dan SAP data)
+  var CACHE_KEY = 'helicrm_leads_cache_v1';
+  var CACHE_TS_KEY = 'helicrm_leads_cache_ts_v1';
+  if (!forceRefresh) {
+    try {
+      var cacheTs = parseInt(localStorage.getItem(CACHE_TS_KEY) || '0');
+      if (Date.now() - cacheTs < 15 * 60 * 1000) { // 15 minuten
+        var cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          var parsed = JSON.parse(cached);
+          leads = parsed;
+          var maxNr = 0;
+          leads.forEach(function(l) { var n = parseInt((l.id||'').split('-').pop())||0; if(n>maxNr)maxNr=n; });
+          if (maxNr >= leadCounter) leadCounter = maxNr + 1;
+          invalidateSortCache();
+          console.log('Leads geladen uit cache (' + leads.length + ' records)');
+          return true;
+        }
+      }
+    } catch(e) {}
+  }
   try {
     var allData = [];
     var from = 0;
@@ -4236,23 +4353,50 @@ async function sbLoadLeads() {
     });
     if (maxNr >= leadCounter) leadCounter = maxNr + 1;
     invalidateSortCache();
+    // Cache opslaan
+    try {
+      localStorage.setItem('helicrm_leads_cache_v1', JSON.stringify(leads));
+      localStorage.setItem('helicrm_leads_cache_ts_v1', Date.now().toString());
+    } catch(e) {}
     return true;
   } catch(e) { console.warn('sbLoadLeads:', e); return false; }
 }
 
-async function sbLoadSapKlanten() {
+async function sbLoadSapKlanten(forceRefresh) {
   var db = getSbClient();
   if (!db) return false;
+
+  // Check localStorage cache — max 24 uur oud
+  var CACHE_KEY = 'helicrm_sap_cache_v1';
+  var CACHE_TS_KEY = 'helicrm_sap_cache_ts_v1';
+  if (!forceRefresh) {
+    try {
+      var cacheTs = parseInt(localStorage.getItem(CACHE_TS_KEY) || '0');
+      var cacheAge = Date.now() - cacheTs;
+      if (cacheAge < 24 * 60 * 60 * 1000) { // 24 uur
+        var cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          sapKlanten = JSON.parse(cached);
+          console.log('SAP klanten geladen uit cache (' + sapKlanten.length + ' records)');
+          return true;
+        }
+      }
+    } catch(e) {}
+  }
+
+  // Laad enkel benodigde kolommen (niet alle data)
   try {
     var allData = [];
     var from = 0;
     var pageSize = 1000;
     while (true) {
-      var res = await db.from('sap_klanten').select('*').range(from, from + pageSize - 1);
+      var res = await db.from('sap_klanten')
+        .select('nr,naam,bus,omz26,omz25,fac,ord')
+        .range(from, from + pageSize - 1);
       if (res.error) throw res.error;
       if (!res.data || res.data.length === 0) break;
       allData = allData.concat(res.data);
-      if (res.data.length < pageSize) break; // laatste pagina
+      if (res.data.length < pageSize) break;
       from += pageSize;
     }
     sapKlanten = allData.map(function(r) {
@@ -4260,6 +4404,14 @@ async function sbLoadSapKlanten() {
       if (typeof k.bus === 'string') { try { k.bus = JSON.parse(k.bus); } catch(e) { k.bus = []; } }
       return k;
     });
+
+    // Sla op in localStorage cache
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(sapKlanten));
+      localStorage.setItem(CACHE_TS_KEY, Date.now().toString());
+    } catch(e) { console.warn('Cache opslaan mislukt:', e); }
+
+    console.log('SAP klanten geladen van Supabase (' + sapKlanten.length + ' records)');
     return true;
   } catch(e) { console.warn('sbLoadSapKlanten:', e); return false; }
 }
@@ -4407,6 +4559,9 @@ function saveDataLocal() {
       leads: leads, leadCounter: leadCounter, notifs: notifs,
       savedAt: new Date().toISOString()
     }));
+    // Update leads cache zodat refresh lokale wijzigingen behoudt
+    localStorage.setItem('helicrm_leads_cache_v1', JSON.stringify(leads));
+    localStorage.setItem('helicrm_leads_cache_ts_v1', Date.now().toString());
   } catch(e) {}
 }
 
@@ -4576,6 +4731,9 @@ function loadAllFiles() {
   if (loaded > 0) {
     sbSaveLead_all().then(function(){
       sbSaveSapKlanten().then(function(){
+        // Wis SAP cache na import zodat verse data geladen wordt
+        localStorage.removeItem('helicrm_sap_cache_v1');
+        localStorage.removeItem('helicrm_sap_cache_ts_v1');
         sbSaveContacten().then(function(){
           renderCurrentView(); renderKlanten(); updateNotifBadge();
           if (statusEl) {
@@ -4609,9 +4767,26 @@ async function sbSaveContacten() {
   } catch(e) { console.warn('sbSaveContacten:', e); }
 }
 
-async function sbLoadContacten() {
+async function sbLoadContacten(forceRefresh) {
   var db = getSbClient();
   if (!db) return false;
+
+  // Cache contacten voor 1 uur
+  var CACHE_KEY = 'helicrm_contacten_cache_v1';
+  var CACHE_TS_KEY = 'helicrm_contacten_cache_ts_v1';
+  if (!forceRefresh) {
+    try {
+      var cacheTs = parseInt(localStorage.getItem(CACHE_TS_KEY) || '0');
+      if (Date.now() - cacheTs < 60 * 60 * 1000) { // 1 uur
+        var cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          contacten = JSON.parse(cached);
+          console.log('Contacten geladen uit cache (' + contacten.length + ' records)');
+          return true;
+        }
+      }
+    } catch(e) {}
+  }
   try {
     // Laad in batches van 1000 om de Supabase limiet te omzeilen
     var allData = [];
@@ -4629,6 +4804,11 @@ async function sbLoadContacten() {
     if (allData.length > 0) {
       contacten = allData;
       saveContacten();
+      // Cache opslaan
+      try {
+        localStorage.setItem('helicrm_contacten_cache_v1', JSON.stringify(contacten));
+        localStorage.setItem('helicrm_contacten_cache_ts_v1', Date.now().toString());
+      } catch(e) {}
     }
     return true;
   } catch(e) { console.warn('sbLoadContacten:', e); return false; }
@@ -4983,6 +5163,11 @@ function loadContacten() {
 }
 function saveContacten() {
   try { localStorage.setItem(LS_CONTACTEN, JSON.stringify(contacten)); } catch(e) {}
+  // Update cache zodat refresh de lokale data niet overschrijft
+  try {
+    localStorage.setItem('helicrm_contacten_cache_v1', JSON.stringify(contacten));
+    localStorage.setItem('helicrm_contacten_cache_ts_v1', Date.now().toString());
+  } catch(e) {}
   // Ook naar Supabase sturen als verbonden
   if (typeof sbSaveContacten === 'function') {
     sbSaveContacten().catch(function(e){ console.warn('sbSaveContacten:', e); });
@@ -4991,7 +5176,7 @@ function saveContacten() {
 function renderContacten() {
   const q = (document.getElementById('contactSearch')?.value || '').toLowerCase();
   let filtered = contacten.filter(c => {
-    const buOk = contactBuFilterVal === 'all' || (c.bu||'').split(',').map(s=>s.trim()).includes(contactBuFilterVal);
+    const buOk = contactBuFilterVals.has('all') || (c.bu||'').split(',').map(s=>s.trim()).some(function(b){return contactBuFilterVals.has(b);});
     const zoekVeld = ((c.naam||'') + ' ' + (c.bedrijf||'') + ' ' + (c.email||'')).toLowerCase();
     const qOk = !q || q.trim().split(/\s+/).every(word => zoekVeld.includes(word));
     return buOk && qOk;
@@ -5018,8 +5203,9 @@ function renderContacten() {
       <td>${c.email ? '<a href="mailto:' + c.email + '" style="color:var(--accent)">' + c.email + '</a>' : '—'}</td>
       <td>${c.tel || '—'}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-sm" onclick="openContactModal('${c.id}')" style="padding:3px 8px;font-size:11px">&#9998;</button>
-        <button class="btn btn-sm" onclick="deleteContact('${c.id}')" style="padding:3px 8px;font-size:11px;color:#c00;margin-left:4px">&#128465;</button>
+        <button class="btn btn-sm" onclick="nieuweActieVanuitContact('${c.naam}','${c.bedrijf||''}','${c.email||''}','${c.tel||''}')" style="padding:3px 8px;font-size:11px;background:var(--orange);color:#fff;border-color:var(--orange)" title="Nieuwe actie">&#10010;</button>
+        <button class="btn btn-sm" onclick="openContactModal('${c.id}')" style="padding:3px 8px;font-size:11px;margin-left:2px">&#9998;</button>
+        <button class="btn btn-sm" onclick="deleteContact('${c.id}')" style="padding:3px 8px;font-size:11px;color:#c00;margin-left:2px">&#128465;</button>
       </td>
     </tr>`).join('');
   renderPagination(filtered.length, contactPage, 'contactPageInfo', 'contactPageNum', 'contactPrevBtn', 'contactNextBtn', 'contactPagination', 'contacten');
