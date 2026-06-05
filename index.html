@@ -4807,6 +4807,44 @@ function processFile(key, file) {
     if (hint) hint.textContent = file.name;
     if (card) card.style.borderColor = 'var(--teal)';
     if (status) { status.textContent = '✓ Geselecteerd'; status.style.color = 'var(--teal-mid)'; }
+
+    // Wederzijdse uitsluiting: gecombineerd ↔ losse bestanden
+    var losse = ['rental','sales','safety','hs'];
+    if (key === 'combined') {
+      // Gecombineerd gekozen → losse bestanden wissen en uitschakelen
+      losse.forEach(function(k) {
+        delete _loadedFiles[k];
+        var c = document.getElementById('card_' + k);
+        var z = document.getElementById('zone_' + k);
+        var ic = document.getElementById('icon_' + k);
+        var hi = document.getElementById('hint_' + k);
+        var st = document.getElementById('status_' + k);
+        if (c) { c.style.opacity='0.4'; c.style.pointerEvents='none'; }
+        if (z) z.style.borderColor='';
+        if (ic) ic.textContent = '📊';
+        if (hi) hi.textContent = 'Klik of sleep het bestand hier';
+        if (st) { st.textContent = '— uitgeschakeld (gecombineerd bestand actief)'; st.style.color='var(--muted)'; }
+      });
+    } else if (losse.includes(key)) {
+      // Los bestand gekozen → gecombineerd wissen en uitschakelen
+      delete _loadedFiles['combined'];
+      var cc = document.getElementById('card_combined');
+      var zc = document.getElementById('zone_combined');
+      var ic2 = document.getElementById('icon_combined');
+      var hc = document.getElementById('hint_combined');
+      var sc = document.getElementById('status_combined');
+      if (cc) { cc.style.opacity='0.4'; cc.style.pointerEvents='none'; }
+      if (zc) zc.style.borderColor='';
+      if (ic2) ic2.textContent = '📈';
+      if (hc) hc.textContent = 'Klik of sleep het gecombineerde bestand hier';
+      if (sc) { sc.textContent = '— uitgeschakeld (losse bestanden actief)'; sc.style.color='var(--muted)'; }
+      // Losse bestanden terug activeren
+      losse.forEach(function(k) {
+        var ck = document.getElementById('card_' + k);
+        if (ck) { ck.style.opacity=''; ck.style.pointerEvents=''; }
+      });
+    }
+
     updateLoadButton();
   };
   reader.readAsArrayBuffer(file);
@@ -4849,9 +4887,15 @@ function loadAllFiles() {
     {key:'safety', bu:'Safety', fn:parseOmzetFull},
     {key:'hs',     bu:'HS',     fn:parseOmzetSimple},
   ];
-  // Reset vóór import — anders wordt omzet opgeteld bij vorige import
+  // Reset vóór import — sla omz25 op want 2025 is bevroren
   var anyOmzetFile = _loadedFiles['combined'] || omzetDefs.some(function(def){ return !!_loadedFiles[def.key]; });
   if (anyOmzetFile) {
+    // Bewaar bestaande 2025-cijfers per SAP-nr en per naam
+    var frozen25 = {};
+    sapKlanten.forEach(function(k) {
+      if (k.nr)   frozen25[k.nr]   = k.omz25 || 0;
+      if (k.naam) frozen25[k.naam] = k.omz25 || 0;
+    });
     sapKlanten = [];
     omzetPeriode = {};
   }
@@ -4878,6 +4922,14 @@ function loadAllFiles() {
       setFileStatus(def.key, true, items.length + ' klanten');
     } catch(e) { setFileStatus(def.key, false, e.message); }
   });
+
+  // Herstel bevroren 2025-cijfers
+  if (anyOmzetFile && frozen25) {
+    sapKlanten.forEach(function(k) {
+      var v = frozen25[k.nr] || frozen25[k.naam] || 0;
+      if (v) k.omz25 = v;
+    });
+  }
 
   if (loaded > 0) {
     sbSaveLead_all().then(function(){
@@ -5104,7 +5156,8 @@ function parseOmzetSimple(wb, buKey) {
     if (!byNr[key]) byNr[key] = {nr:nr, naam:naam, bus:[buKey], omz26:0, omz25:0, fac:0, ord:0};
     if (byNr[key].bus.indexOf(buKey)<0) byNr[key].bus.push(buKey);
     var yr = parseInt(jaar)||0;
-    if (yr===CUR_YEAR) byNr[key].omz26+=bedrag; else if (yr===PREV_YEAR) byNr[key].omz25+=bedrag;
+    if (yr === PREV_YEAR) return; // 2025 bevroren — rij overslaan
+    if (yr===CUR_YEAR) byNr[key].omz26+=bedrag;
     if (String(row['Order']||'').trim()) byNr[key].ord++;
     // Periode ophalen: gebruik 'Periode' als beschikbaar, anders schat op basis van jaar
     var p = parseInt(row['Periode']||0);
@@ -5131,7 +5184,8 @@ function parseOmzetFull(wb, buKey) {
     if (!byNr[key]) byNr[key] = {nr:nr, naam:naam, bus:[buKey], omz26:0, omz25:0, fac:0, ord:0};
     if (byNr[key].bus.indexOf(buKey)<0) byNr[key].bus.push(buKey);
     var yr = parseInt(jaar)||0;
-    if (yr===CUR_YEAR) byNr[key].omz26+=bedrag; else if (yr===PREV_YEAR) byNr[key].omz25+=bedrag;
+    if (yr === PREV_YEAR) return; // 2025 bevroren — rij overslaan
+    if (yr===CUR_YEAR) byNr[key].omz26+=bedrag;
     if (String(row['Fact.doc.']||'').trim()) byNr[key].fac++;
     if (String(row['Order']||'').trim()) byNr[key].ord++;
     // Periode bijhouden
@@ -5173,8 +5227,8 @@ function parseOmzetCombined(wb) {
     if (!tbl[key]) tbl[key] = {nr:nr, naam:naam, bus:[bu], omz26:0, omz25:0, fac:0, ord:0};
 
     var yr = parseInt(jaar) || 0;
+    if (yr === PREV_YEAR) return; // 2025 bevroren — rij overslaan
     if (yr === CUR_YEAR)  tbl[key].omz26 += bedrag;
-    else if (yr === PREV_YEAR) tbl[key].omz25 += bedrag;
     if (String(row['Fact.doc.']||'').trim()) tbl[key].fac++;
     if (String(row['Order']||'').trim())     tbl[key].ord++;
 
