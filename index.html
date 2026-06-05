@@ -822,6 +822,23 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
         <input type="file" id="file_crm" accept=".xlsx,.xls" style="display:none" onchange="fileSelected('crm',this)"/>
       </div>
 
+      <div class="form-card" id="card_combined" style="border:2px solid #E87722;background:linear-gradient(135deg,#FFF8F0,#FFF)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--ink)">&#9889; Gecombineerd bestand <span style="font-size:11px;font-weight:400;color:var(--muted)">(alle BU's in 1 export)</span></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">SQVI_PC_*.xlsx — splitst automatisch op BdNr + PrCtr</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px">BE13 = High&amp;Safe &nbsp;|&nbsp; BE11/PrCtr10 = Rental &nbsp;|&nbsp; BE11/PrCtr51 = Sales &nbsp;|&nbsp; BE11/PrCtr60 = Safety Academy</div>
+          </div>
+          <div id="status_combined" style="font-size:11px;font-weight:600"></div>
+        </div>
+        <div class="upload-zone" id="zone_combined" onclick="triggerFile('combined')" ondragover="dragOver(event,'combined')" ondragleave="dragLeave('combined')" ondrop="dropFile(event,'combined')">
+          <div class="upload-icon" id="icon_combined">&#128200;</div>
+          <div class="upload-hint" id="hint_combined">Klik of sleep het gecombineerde bestand hier</div>
+          <div class="upload-meta">SQVI_PC_*.xlsx</div>
+        </div>
+        <input type="file" id="file_combined" accept=".xlsx,.xls" style="display:none" onchange="fileSelected('combined',this)"/>
+      </div>
+
       <div class="form-card" id="card_rental" style="border:2px solid var(--border)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <div><div style="font-size:13px;font-weight:700;color:var(--ink)"><span class="bu-badge bu-Rental">Rental</span> Omzet</div>
@@ -2714,17 +2731,10 @@ function renderPagination(total, page, infoId, numId, prevId, nextId, pagId, lab
 function dashFilter(s,el){dashStatusFilter=s;dashPage=0;document.querySelectorAll('#dashFilters .filter-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderDashboard();}
 function buFilter(bu,el) {
   allPage=0;
-  if (bu==='all') {
-    buFilterVals = new Set(['all']);
-    document.querySelectorAll('#buFilters .filter-btn').forEach(b=>b.classList.remove('active'));
-    el.classList.add('active');
-  } else {
-    buFilterVals.delete('all');
-    document.querySelector('#buFilters .filter-btn').classList.remove('active');
-    if (buFilterVals.has(bu)) { buFilterVals.delete(bu); el.classList.remove('active'); }
-    else { buFilterVals.add(bu); el.classList.add('active'); }
-    if (buFilterVals.size===0) { buFilterVals.add('all'); document.querySelector('#buFilters .filter-btn').classList.add('active'); }
-  }
+  // Radio-gedrag: altijd maar één BU actief
+  buFilterVals = new Set([bu]);
+  document.querySelectorAll('#buFilters .filter-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
   renderAllLeads();
 }
 
@@ -2863,16 +2873,7 @@ function populateQuickLeadSelect() {
 function renderAllLeads() {
   const q = (document.getElementById('leadsSearch')?.value||'').toLowerCase();
   const filtered = sortLeadsCached(leads.filter(l=>{
-    const mBU = buFilterVals.has('all') || (function(){
-      if (buFilterVals.size === 1) return buFilterVals.has(l.bu);
-      // AND-logica: zoek SAP-klant via sapNr of via bedrijfsnaam
-      var sap = null;
-      if (l.sapNr) sap = sapKlanten.find(k => k.nr === l.sapNr);
-      if (!sap && l.bedrijf) sap = sapKlanten.find(k => k.naam.toLowerCase() === l.bedrijf.toLowerCase());
-      if (sap) return [...buFilterVals].every(bu => sap.bus.includes(bu));
-      // Geen SAP-match: verberg bij meerdere filters
-      return false;
-    })();
+    const mBU = buFilterVals.has('all') || buFilterVals.has(l.bu);
     const mQ = !q||l.bedrijf.toLowerCase().includes(q)||l.id.toLowerCase().includes(q)||(l.contact&&l.contact.toLowerCase().includes(q));
     return mBU&&mQ;
   }),allSort);
@@ -4812,7 +4813,7 @@ function processFile(key, file) {
 }
 var _loadedFiles = {};
 function updateLoadButton() {
-  var hasAny = ['crm','rental','sales','safety','hs'].some(function(k){ return !!_loadedFiles[k]; });
+  var hasAny = ['crm','combined','rental','sales','safety','hs'].some(function(k){ return !!_loadedFiles[k]; });
   ['btnLoadAll','btnLoadAll2'].forEach(function(id){
     var b = document.getElementById(id);
     if (b) b.disabled = !hasAny;
@@ -4848,6 +4849,25 @@ function loadAllFiles() {
     {key:'safety', bu:'Safety', fn:parseOmzetFull},
     {key:'hs',     bu:'HS',     fn:parseOmzetSimple},
   ];
+  // Reset vóór import — anders wordt omzet opgeteld bij vorige import
+  var anyOmzetFile = _loadedFiles['combined'] || omzetDefs.some(function(def){ return !!_loadedFiles[def.key]; });
+  if (anyOmzetFile) {
+    sapKlanten = [];
+    omzetPeriode = {};
+  }
+  // Gecombineerd bestand (SQVI) — splitst automatisch op BdNr + PrCtr
+  if (_loadedFiles['combined']) {
+    try {
+      var wb = XLSX.read(new Uint8Array(_loadedFiles['combined']), {type:'array', cellDates:true});
+      var result = parseOmzetCombined(wb);
+      ['Rental','Sales','Safety','HS'].forEach(function(bu) {
+        if (result[bu] && result[bu].length) mergeOmzet(sapKlanten, result[bu]);
+      });
+      var totaal = ['Rental','Sales','Safety','HS'].reduce(function(s,bu){ return s+(result[bu]?result[bu].length:0); },0);
+      loaded++;
+      setFileStatus('combined', true, totaal + ' klanten verdeeld over 4 BU\'s');
+    } catch(e) { setFileStatus('combined', false, e.message); }
+  }
   omzetDefs.forEach(function(def) {
     if (!_loadedFiles[def.key]) return;
     try {
@@ -4950,12 +4970,14 @@ async function sbSaveSapKlanten() {
   var db = getSbClient();
   if (!db || !sapKlanten.length) return;
   try {
+    // Eerst alles wissen zodat oude/ongeldige records niet blijven staan
+    await db.from('sap_klanten').delete().neq('nr', '___NOEXIST___');
     var rows = sapKlanten.map(function(k) {
       var r = Object.assign({}, k);
       if (typeof r.bus !== 'string') r.bus = JSON.stringify(r.bus || []);
       return r;
     });
-    // Upsert in batches van 500
+    // Insert in batches van 500
     for (var i=0; i<rows.length; i+=500) {
       var batch = rows.slice(i, i+500);
       var res = await db.from('sap_klanten').upsert(batch, {onConflict: 'nr'});
@@ -5120,6 +5142,58 @@ function parseOmzetFull(wb, buKey) {
   // Sla max periode op
   if (maxPeriode !== null) omzetPeriode[buKey] = maxPeriode;
   return Object.values(byNr);
+}
+
+function parseOmzetCombined(wb) {
+  var ws = wb.Sheets[wb.SheetNames[0]];
+  var rows = XLSX.utils.sheet_to_json(ws, {defval:'', raw:true});
+  var byBU = {Rental:{}, Sales:{}, Safety:{}, HS:{}};
+  var periodeByBU = {Rental:null, Sales:null, Safety:null, HS:null};
+
+  rows.forEach(function(row) {
+    var bdnr  = String(row['BdNr']||'').trim();
+    var prctr = parseFloat(row['PrCtr']) || 0;
+    var jaar  = String(row['Jaar']||'').trim();
+    var nr    = String(row['Opdr.gever']||'').trim();
+    var naam  = String(row['Naam 1']||'').trim();
+    var bedrag= typeof row['Bedrag in BdNr-valuta']==='number'
+                  ? row['Bedrag in BdNr-valuta']
+                  : parseFloat(String(row['Bedrag in BdNr-valuta']||'0').replace(',','.')) || 0;
+
+    // Bepaal BU op basis van BdNr + PrCtr
+    var bu = null;
+    if (bdnr === 'BE13')                       bu = 'HS';
+    else if (bdnr === 'BE11' && prctr === 10)  bu = 'Rental';
+    else if (bdnr === 'BE11' && prctr === 51)  bu = 'Sales';
+    else if (bdnr === 'BE11' && prctr === 60)  bu = 'Safety';
+    if (!bu || (!nr && !naam)) return;
+
+    var key = nr || naam;
+    var tbl = byBU[bu];
+    if (!tbl[key]) tbl[key] = {nr:nr, naam:naam, bus:[bu], omz26:0, omz25:0, fac:0, ord:0};
+
+    var yr = parseInt(jaar) || 0;
+    if (yr === CUR_YEAR)  tbl[key].omz26 += bedrag;
+    else if (yr === PREV_YEAR) tbl[key].omz25 += bedrag;
+    if (String(row['Fact.doc.']||'').trim()) tbl[key].fac++;
+    if (String(row['Order']||'').trim())     tbl[key].ord++;
+
+    // Periode bijhouden
+    var p = parseInt(row['Periode']||0);
+    if (yr === CUR_YEAR && p > 0 && (periodeByBU[bu] === null || p > periodeByBU[bu])) {
+      periodeByBU[bu] = p;
+    }
+  });
+
+  // Negeer (SAP slaat op als negatief)
+  var result = {};
+  ['Rental','Sales','Safety','HS'].forEach(function(bu) {
+    var items = Object.values(byBU[bu]);
+    items.forEach(function(k){ k.omz26 = -k.omz26; k.omz25 = -k.omz25; });
+    result[bu] = items;
+    if (periodeByBU[bu] !== null) omzetPeriode[bu] = periodeByBU[bu];
+  });
+  return result;
 }
 
 function mergeOmzet(existing, newItems) {
