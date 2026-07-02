@@ -466,6 +466,9 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
     <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:20px" id="forcedPwSub">Er staat nog geen wachtwoord ingesteld voor dit account. Kies een sterk wachtwoord (min. 14 tekens, hoofd- en kleine letters, cijfer, speciaal teken).</div>
     <input type="hidden" id="forcedPwCacheKey"/>
     <input type="hidden" id="forcedPwStorageKey"/>
+    <input type="hidden" id="forcedPwDisplayName"/>
+    <input type="hidden" id="forcedPwIsAdmin"/>
+    <input type="hidden" id="forcedPwVal"/>
     <label class="login-label">Nieuw wachtwoord</label>
     <input id="forcedPwField" class="login-input" type="password" placeholder="••••••••••••••" style="margin-bottom:10px" oninput="checkPwStrength('forcedPwField','forcedPwRules')"/>
     <div id="forcedPwRules" style="margin-bottom:10px"></div>
@@ -1756,15 +1759,14 @@ const LS_USERS      = 'helicrm_users_v2';
 const ADMIN_PW_KEY  = 'helicrm_admin_pw_v1';
 const LAURENT_PW_KEY = 'helicrm_laurent_pw_v1';
 
-// ── Verplichte wachtwoord-registratie Administrator/Laurent ────────────────
-// Er staat GEEN vast wachtwoord meer in de broncode. Is er nog geen
-// wachtwoord opgeslagen in Supabase (tabel user_passwords) voor deze twee
-// accounts, dan verplicht de app om er meteen één aan te maken (zie
-// showForcedPwSetup / saveForcedPw).
+// ── Verplichte wachtwoord-registratie voor ALLE gebruikers ─────────────────
+// Er staat GEEN vast wachtwoord meer in de broncode. Heeft een account nog
+// geen wachtwoord in Supabase (tabel user_passwords), dan verplicht de app
+// om er meteen één aan te maken (zie showForcedPwSetup / saveForcedPw).
 // ONTWIKKELING: zet op true om deze verplichte stap tijdelijk over te slaan
 // (handig tijdens testen in Claude, zonder Supabase-verbinding).
 // ZET ALTIJD TERUG OP false VOOR PRODUCTIE!
-let SKIP_FORCED_ADMIN_PW_SETUP = false;
+let SKIP_FORCED_PW_SETUP = false;
 const DEV_FALLBACK_PW = 'DevTest123!'; // enkel gebruikt als bovenstaande op true staat
 
 const DEFAULT_USERS = [
@@ -2088,7 +2090,7 @@ async function doLogin() {
       err.textContent = '';
     }
     if (!adminHash) {
-      if (SKIP_FORCED_ADMIN_PW_SETUP) {
+      if (SKIP_FORCED_PW_SETUP) {
         // ONTWIKKELMODUS — niet gebruiken in productie
         adminHash = await sha256(DEV_FALLBACK_PW);
         localStorage.setItem(pwKey, adminHash);
@@ -2097,7 +2099,7 @@ async function doLogin() {
         // aanmaken. Dit wordt rechtstreeks in Supabase opgeslagen — er komt
         // geen wachtwoord meer in de broncode te staan.
         err.textContent = '';
-        showForcedPwSetup(cacheKey, pwKey, displayName);
+        showForcedPwSetup(cacheKey, pwKey, displayName, true, val);
         return;
       }
     }
@@ -2119,18 +2121,25 @@ async function doLogin() {
   }
 
   var storedPw = getUserPw(name);
-  if (storedPw === null && pw !== '') {
+  if (storedPw === null) {
     // Cache mogelijk nog niet geladen — haal wachtwoorden opnieuw op uit Supabase
     err.textContent = '\u23f3 Verbinding maken\u2026';
     try { await sbLoadPasswords(); } catch(e) {}
     storedPw = getUserPw(name);
     err.textContent = '';
   }
-  if (storedPw !== null) {
+  if (storedPw === null) {
+    if (SKIP_FORCED_PW_SETUP) {
+      // ONTWIKKELMODUS — niet gebruiken in productie: log direct in zonder wachtwoord
+    } else {
+      // Geen wachtwoord ingesteld: verplicht een nieuw wachtwoord laten aanmaken,
+      // rechtstreeks opgeslagen in Supabase.
+      showForcedPwSetup(name, null, name, false, val);
+      return;
+    }
+  } else {
     var inputHash = await sha256(pw);
     if (inputHash !== storedPw && pw !== storedPw) { err.textContent = 'Fout wachtwoord.'; return; }
-  } else if (pw !== '') {
-    err.textContent = 'Geen wachtwoord ingesteld — laat het veld leeg.'; return;
   }
   err.textContent = '';
   _pendingLoginVal = val; _pendingIsAdmin = false; _pendingUserName = name;
@@ -2165,6 +2174,7 @@ function doLoginSuccess(val, isAdmin) {
     if (exportBtnA) exportBtnA.style.display = 'block';
     updateRapportNav();
     navTo('admin');
+    sbLoadNotifs().then(function(){ updateNotifBadge(); if (typeof renderNotifs === 'function') renderNotifs(); });
     return;
   }
 
@@ -2709,10 +2719,13 @@ function checkResetToken() {
   }
 }
 
-// ── Verplichte wachtwoord-setup Administrator/Laurent (eerste login) ───────
-function showForcedPwSetup(cacheKey, pwKey, displayName) {
-  document.getElementById('forcedPwCacheKey').value = cacheKey;
-  document.getElementById('forcedPwStorageKey').value = pwKey;
+// ── Verplichte wachtwoord-setup (elke gebruiker zonder wachtwoord) ─────────
+function showForcedPwSetup(username, pwKey, displayName, isAdmin, val) {
+  document.getElementById('forcedPwCacheKey').value = username;
+  document.getElementById('forcedPwStorageKey').value = pwKey || '';
+  document.getElementById('forcedPwDisplayName').value = displayName;
+  document.getElementById('forcedPwIsAdmin').value = isAdmin ? '1' : '0';
+  document.getElementById('forcedPwVal').value = val;
   document.getElementById('forcedPwSub').textContent = 'Er staat nog geen wachtwoord ingesteld voor "' + displayName + '". Kies een sterk wachtwoord (min. 14 tekens, hoofd- en kleine letters, cijfer, speciaal teken).';
   document.getElementById('forcedPwField').value = '';
   document.getElementById('forcedPwField2').value = '';
@@ -2726,12 +2739,14 @@ function closeForcedPwSetup() {
 }
 
 async function saveForcedPw() {
-  var cacheKey = document.getElementById('forcedPwCacheKey').value;
-  var pwKey    = document.getElementById('forcedPwStorageKey').value;
+  var username    = document.getElementById('forcedPwCacheKey').value;
+  var pwKey       = document.getElementById('forcedPwStorageKey').value;
+  var displayName = document.getElementById('forcedPwDisplayName').value;
+  var isAdmin     = document.getElementById('forcedPwIsAdmin').value === '1';
+  var val         = document.getElementById('forcedPwVal').value;
   var pw       = document.getElementById('forcedPwField').value;
   var pw2      = document.getElementById('forcedPwField2').value;
   var msgEl    = document.getElementById('forcedPwMsg');
-  var displayName = cacheKey === '__laurent__' ? 'Laurent Dedoncker' : 'Administrator';
 
   if (pw !== pw2) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Wachtwoorden komen niet overeen.'; return; }
   var errors = getPwErrors(pw);
@@ -2743,20 +2758,19 @@ async function saveForcedPw() {
 
   try {
     var hash = await sha256(pw);
-    await sbSavePassword(cacheKey, hash);
-    _sbPwCache[cacheKey] = hash;
+    await sbSavePassword(username, hash);
+    _sbPwCache[username] = hash;
     try {
-      var lp = loadPasswords(); lp[cacheKey] = hash;
+      var lp = loadPasswords(); lp[username] = hash;
       localStorage.setItem('helicrm_passwords_v1', JSON.stringify(lp));
-      localStorage.setItem(pwKey, hash);
+      if (pwKey) localStorage.setItem(pwKey, hash);
     } catch(e) {}
 
     msgEl.style.color = 'var(--teal-mid)';
     msgEl.textContent = '✓ Wachtwoord opgeslagen!';
     closeForcedPwSetup();
     document.getElementById('loginPw').value = '';
-    var val = cacheKey === '__laurent__' ? '__laurent__|Admin|admin' : '__admin__|Admin|admin';
-    _pendingLoginVal = val; _pendingIsAdmin = true; _pendingUserName = displayName;
+    _pendingLoginVal = val; _pendingIsAdmin = isAdmin; _pendingUserName = displayName;
     showTotpStep(displayName);
   } catch(e) {
     msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Fout: ' + e.message;
@@ -3338,6 +3352,7 @@ function switchUser(val) {
   document.getElementById('dashTitle').textContent = t('welkom', parts[0]);
   updateRapportNav();
   renderDashboard();
+  sbLoadNotifs().then(function(){ updateNotifBadge(); if (typeof renderNotifs === 'function') renderNotifs(); });
 }
 
 // ── STATS ─────────────────────────────────────────────────────────────────
@@ -4791,9 +4806,83 @@ function confirmRoute() {
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
 // ── NOTIFS ────────────────────────────────────────────────────────────────
+// Notificaties worden naar Supabase (tabel "notificaties") gesynchroniseerd
+// zodat ze écht bij de juiste collega aankomen — niet enkel in de browser
+// van wie de melding aanmaakt.
+function genUuid(){
+  if (crypto.randomUUID) return crypto.randomUUID();
+  var b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  var h = Array.from(b).map(function(x){ return x.toString(16).padStart(2,'0'); });
+  return h.slice(0,4).join('')+'-'+h.slice(4,6).join('')+'-'+h.slice(6,8).join('')+'-'+h.slice(8,10).join('')+'-'+h.slice(10,16).join('');
+}
+
+async function sbSaveNotif(rec) {
+  var db = getSbClient();
+  if (!db) return;
+  try {
+    await db.from('notificaties').insert({
+      id: rec.id, titel: rec.title, body: rec.body, bu: rec.bu,
+      voor: rec.voor || null, van: rec.van || null, gelezen_door: []
+    });
+  } catch(e) { console.warn('sbSaveNotif:', e); }
+}
+
+async function sbLoadNotifs() {
+  var db = getSbClient();
+  if (!db) return false;
+  try {
+    var res = await db.from('notificaties')
+      .select('id,titel,body,bu,voor,van,gelezen_door,created_at')
+      .order('created_at', {ascending:false})
+      .limit(200);
+    if (res.error) throw res.error;
+    var rows = res.data || [];
+    var naam = currentUser ? currentUser.name : '';
+    var bu = currentUser ? currentUser.bu : '';
+    var mine = rows.filter(function(r){
+      return r.voor === naam || (!r.voor && r.bu === bu);
+    });
+    notifs = mine.map(function(r){
+      var gd = Array.isArray(r.gelezen_door) ? r.gelezen_door : [];
+      return {
+        id: r.id, title: r.titel, body: r.body, bu: r.bu, voor: r.voor,
+        time: r.created_at ? new Date(r.created_at).toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'}) : '',
+        dat: r.created_at ? r.created_at.slice(0,10) : new Date().toISOString().slice(0,10),
+        gelezen: gd.indexOf(naam) >= 0
+      };
+    });
+    return true;
+  } catch(e) { console.warn('sbLoadNotifs:', e); return false; }
+}
+
+async function sbMarkNotifRead(id) {
+  var db = getSbClient();
+  if (!db) return;
+  try {
+    var res = await db.from('notificaties').select('gelezen_door').eq('id', id).single();
+    if (res.error || !res.data) return;
+    var arr = Array.isArray(res.data.gelezen_door) ? res.data.gelezen_door : [];
+    var naam = currentUser ? currentUser.name : '';
+    if (arr.indexOf(naam) === -1) {
+      arr.push(naam);
+      await db.from('notificaties').update({gelezen_door: arr}).eq('id', id);
+    }
+  } catch(e) { console.warn('sbMarkNotifRead:', e); }
+}
+
 function addNotif(title,body,bu,voor){
-  notifs.unshift({id:Date.now(),title,body,time:new Date().toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'}),dat:new Date().toISOString().slice(0,10),bu,voor:voor||null,gelezen:false});
-  updateNotifBadge();
+  var id = genUuid();
+  var van = currentUser ? currentUser.name : null;
+  try { sbSaveNotif({id:id, title:title, body:body, bu:bu, voor:voor||null, van:van}); } catch(e) {}
+  // Enkel meteen in de eigen lijst tonen als de melding ook echt voor mezelf is
+  var naam = currentUser ? currentUser.name : '';
+  var myBu = currentUser ? currentUser.bu : '';
+  var isMine = (voor && voor === naam) || (!voor && bu === myBu);
+  if (isMine) {
+    notifs.unshift({id:id,title,body,time:new Date().toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'}),dat:new Date().toISOString().slice(0,10),bu,voor:voor||null,gelezen:false});
+    updateNotifBadge();
+  }
 }
 function updateNotifBadge(){
   const n=notifs.filter(x=>!x.gelezen).length;
@@ -4821,7 +4910,13 @@ function fmtNotifTijd(n){
           : p[2]+'/'+p[1]+'/'+p[0].slice(2);
   return lbl+' \u00b7 '+(n.time||'');
 }
-function markAllRead(){notifs.forEach(n=>n.gelezen=true);updateNotifBadge();renderNotifs();}
+function markAllRead(){
+  var toMark = notifs.filter(function(n){ return !n.gelezen; });
+  notifs.forEach(n=>n.gelezen=true);
+  updateNotifBadge();
+  renderNotifs();
+  toMark.forEach(function(n){ try { sbMarkNotifRead(n.id); } catch(e){} });
+}
 
 // ── SORT ──────────────────────────────────────────────────────────────────
 function sortLeads(arr,state){
@@ -5884,7 +5979,7 @@ async function sbLoadAll() {
     try { ok1 = await sbLoadLeads(); } catch(e) { console.warn('sbLoadLeads error:', e); }
     try { ok2 = await sbLoadSapKlanten(); } catch(e) { console.warn('sbLoadSapKlanten error:', e); }
     try { ok3 = await sbLoadContacten(); } catch(e) { console.warn('sbLoadContacten error:', e); }
-    try { await sbLoadUsers(); syncAllMembers(); ensureBmDefaults(); rebuildUserDropdowns(currentUser.name); } catch(e) { console.warn('sbLoadUsers error:', e); }
+    try { await sbLoadUsers(); syncAllMembers(); ensureBmDefaults(); rebuildUserDropdowns(currentUser.name); mergeTeamProfilesFromUsers(); } catch(e) { console.warn('sbLoadUsers error:', e); }
     try { await sbLoadPasswords(); } catch(e) { console.warn('sbLoadPasswords error:', e); }
     try { await sbLoadFeedback(); } catch(e) { console.warn('sbLoadFeedback error:', e); }
 
@@ -7962,6 +8057,25 @@ function loadTeamProfiles() {
   } catch(e) {}
 }
 
+// Vult teamProfiles aan met de gegevens van ALLE gebruikers uit Supabase
+// (crm_users), zodat je ook de gegevens van collega's ziet — niet enkel wat
+// toevallig ooit lokaal in jouw eigen browser is opgeslagen.
+function mergeTeamProfilesFromUsers() {
+  if (!_sbUsersCache) return;
+  _sbUsersCache.forEach(function(u){
+    if (!u.name) return;
+    var p = teamProfiles[u.name] || {};
+    if (u.email   !== undefined && u.email   !== null) p.email   = u.email;
+    if (u.slagzin !== undefined && u.slagzin !== null) p.slagzin = u.slagzin;
+    if (u.spec    !== undefined && u.spec    !== null) p.spec    = u.spec;
+    if (u.regio   !== undefined && u.regio   !== null) p.regio   = u.regio;
+    if (u.tel     !== undefined && u.tel     !== null) p.tel     = u.tel;
+    if (u.foto    !== undefined && u.foto    !== null) p.foto    = u.foto;
+    teamProfiles[u.name] = p;
+  });
+  try { localStorage.setItem('helicrm_team_v1', JSON.stringify(teamProfiles)); } catch(e) {}
+}
+
 function saveTeamProfiles() {
   try { localStorage.setItem('helicrm_team_v1', JSON.stringify(teamProfiles)); } catch(e) {}
   // Ook opslaan in crm_users voor gedeeld gebruik
@@ -7969,7 +8083,14 @@ function saveTeamProfiles() {
   if (!db) return;
   var name = currentUser.name;
   var p = teamProfiles[name] || {};
-  db.from('crm_users').upsert({name: name, bu: currentUser.bu, role: currentUser.role||'am', email: p.email||'', slagzin: p.slagzin||'', spec: p.spec||'', regio: p.regio||''}, {onConflict: 'name'}).then(function(){});
+  var payload = {name: name, bu: currentUser.bu, role: currentUser.role||'am', email: p.email||'', slagzin: p.slagzin||'', spec: p.spec||'', regio: p.regio||'', tel: p.tel||'', foto: p.foto||''};
+  db.from('crm_users').upsert(payload, {onConflict: 'name'}).then(function(res){
+    if (res && res.error) {
+      // Mogelijk ontbreken tel/foto-kolommen nog in Supabase — probeer zonder die twee
+      var clean = Object.assign({}, payload); delete clean.tel; delete clean.foto;
+      db.from('crm_users').upsert(clean, {onConflict: 'name'}).then(function(){});
+    }
+  });
 }
 
 function getInitials(name) {
@@ -8805,7 +8926,10 @@ function startAutoRefresh() {
       sbLoadContacten().then(function() {
         invalidateSortCache();
         renderCurrentView();
-        updateNotifBadge();
+        sbLoadNotifs().then(function(){
+          updateNotifBadge();
+          if (typeof renderNotifs === 'function') renderNotifs();
+        });
         var now = new Date().toLocaleTimeString('nl-BE', {hour:'2-digit', minute:'2-digit'});
         var el = document.getElementById('autoRefreshLabel');
         if (el) el.textContent = '🔄 ' + t('lbl_ververst') + ' ' + now;
