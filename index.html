@@ -866,7 +866,9 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
   <div class="view" id="view-klanten">
     <div class="page-header">
       <div><div class="page-title" data-i18n="nav_klanten">Klanten (SAP)</div><div class="page-sub" data-i18n="sub_klanten">Omzetdata geïmporteerd vanuit SAP-export</div></div>
+      <button class="btn btn-primary" onclick="openKlantModal()">+ Nieuwe klant</button>
     </div>
+    <div id="mergeBanner"></div>
     <div class="section-hdr">
       <div class="filter-row" id="klantBuFilters">
         <button class="filter-btn active" onclick="klantBuFilter('all',this)">Alle BU's</button>
@@ -875,6 +877,7 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
         <button class="filter-btn" onclick="klantBuFilter('Safety',this)">Safety Academy</button>
         <button class="filter-btn" onclick="klantBuFilter('HS',this)">High&amp;Safe</button>
         <button class="filter-btn" onclick="klantBuFilter('cross',this)">Cross-BU &#9733;</button>
+        <button class="filter-btn" onclick="klantBuFilter('eigen',this)" style="border-color:#1F7A5A;color:#1F7A5A">&#10010; Zelf toegevoegd</button>
         <button class="filter-btn" onclick="klantBuFilter('fedrus',this)" style="border-color:#7A1A2E;color:#7A1A2E">&#x3A6; Fedrus</button>
       </div>
       <input class="form-input" id="klantSearch" data-i18n-ph="ph_zoek_klant" placeholder="Zoek klant..." oninput="debouncedRender('klanten')" style="width:180px;padding:5px 10px;font-size:12px"/>
@@ -962,6 +965,72 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
         <button class="btn" onclick="closeContactModal()">Annuleren</button>
         <button class="btn btn-primary" onclick="saveContact()">Opslaan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NIEUWE / EIGEN KLANT -->
+  <div class="modal-overlay" id="klantModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:200;display:none;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;padding:28px;width:520px;max-width:94vw;max-height:92vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.18)">
+      <div style="font-family:var(--font-display);font-size:17px;font-weight:700;color:var(--ink);margin-bottom:4px" id="klantModalTitle">Nieuwe klant</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:20px">Voor klanten die nog niet in de SAP-export staan. Ze krijgen een eigen nummer en zijn daarna overal terug te vinden.</div>
+      <div class="form-grid">
+        <div class="form-group full"><label class="form-label">Klantnaam <span style="color:#C0392B">*</span></label><input class="form-input" id="kNaam" placeholder="Naam van het bedrijf"/></div>
+        <div class="form-group full"><label class="form-label">Actief bij</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius)">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="kBU_Rental" value="Rental"> Rental</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="kBU_Sales" value="Sales"> Sales</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="kBU_Safety" value="Safety"> Safety Academy</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="kBU_HS" value="HS"> High&amp;Safe</label>
+          </div>
+        </div>
+        <div class="form-group"><label class="form-label">Stad</label><input class="form-input" id="kStad" placeholder="Gemeente"/></div>
+        <div class="form-group"><label class="form-label">BTW-nummer</label><input class="form-input" id="kBtw" placeholder="BE 0123.456.789"/></div>
+        <div class="form-group"><label class="form-label">Telefoon</label><input class="form-input" id="kTel" placeholder="+32 ..."/></div>
+        <div class="form-group"><label class="form-label">E-mail</label><input class="form-input" id="kEmail" type="email" placeholder="info@bedrijf.be"/></div>
+        <div class="form-group full"><label class="form-label">Notitie</label><textarea class="form-input" id="kNotitie" rows="2" placeholder="Interne notitie over deze klant..." style="resize:vertical"></textarea></div>
+      </div>
+      <div id="klantModalMeta" style="font-size:11px;color:var(--subtle);margin-top:14px"></div>
+      <div style="display:flex;justify-content:space-between;gap:10px;margin-top:20px">
+        <button class="btn" id="kDeleteBtn" onclick="deleteEigenKlant()" style="color:#C0392B;border-color:#E8C4C4;display:none">Verwijderen</button>
+        <div style="display:flex;gap:10px;margin-left:auto">
+          <button class="btn" onclick="closeKlantModal()">Annuleren</button>
+          <button class="btn btn-primary" id="kSaveBtn" onclick="saveKlant()">Opslaan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EIGEN KLANT SAMENVOEGEN MET EEN SAP-KLANT -->
+  <div class="modal-overlay" id="mergeModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:210;display:none;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;padding:28px;width:660px;max-width:94vw;max-height:92vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.18)">
+      <div style="font-family:var(--font-display);font-size:17px;font-weight:700;color:var(--ink);margin-bottom:4px">Klant samenvoegen met SAP</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:18px">Alle interacties en contacten verhuizen naar het echte SAP-nummer. De zelf toegevoegde klant verdwijnt daarna uit de lijst.</div>
+
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:stretch">
+        <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid #1F7A5A;border-radius:var(--radius);padding:14px">
+          <div style="font-size:10px;font-weight:700;color:#1F7A5A;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Zelf toegevoegd</div>
+          <div id="mgEigenInfo" style="font-size:13px;color:var(--ink)"></div>
+        </div>
+        <div style="display:flex;align-items:center;font-size:22px;color:var(--muted)">&#8594;</div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--orange);border-radius:var(--radius);padding:14px">
+          <div style="font-size:10px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">SAP-klant</div>
+          <div style="position:relative">
+            <input class="form-input" id="mgSapZoek" placeholder="Zoek op klantnaam of SAP-nummer..." oninput="onMergeSapSearch(this.value)" autocomplete="off" style="font-size:12px"/>
+            <div class="sap-suggest" id="mgSapSuggest" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 6px 20px rgba(0,0,0,.12);max-height:220px;overflow-y:auto"></div>
+          </div>
+          <div id="mgSapInfo" style="font-size:13px;color:var(--ink);margin-top:10px"></div>
+        </div>
+      </div>
+
+      <div id="mgImpact" style="margin-top:16px;background:#FFF8E6;border:1px solid #F0DFAE;border-radius:var(--radius);padding:12px 14px;font-size:12px;color:#6B5518"></div>
+
+      <div style="display:flex;justify-content:space-between;gap:10px;margin-top:20px;flex-wrap:wrap">
+        <button class="btn" id="mgNegeerBtn" onclick="mergeNegeren()" style="color:var(--muted)">Niet dezelfde klant</button>
+        <div style="display:flex;gap:10px;margin-left:auto">
+          <button class="btn" onclick="closeMergeModal()">Annuleren</button>
+          <button class="btn btn-primary" id="mgSaveBtn" onclick="doMerge()">Samenvoegen</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1714,6 +1783,23 @@ let OMZBU_COLUMN_READY = true;     // optimistisch; flipt naar false als de kolo
 // automatisch terug op de oude tabellen sap_klanten / contacten (vangnet blijft intact).
 let USE_V2_TABLES = true;
 let _v2Active = false;   // runtime: true zodra v2 effectief data teruggaf (reads geslaagd)
+
+// ── EIGEN KLANTEN (handmatig in de CRM aangemaakt) ─────────────────────────
+// Klanten die NIET uit de SAP-export komen, maar door een medewerker in de app
+// zelf zijn toegevoegd (prospect, nieuwe klant, klant zonder SAP-nummer).
+//
+// WAAROM EEN APARTE TABEL?
+// Bij elke SAP-import wordt de tabel 'sap_klanten' eerst volledig LEEGGEMAAKT
+// en daarna opnieuw gevuld met de Excel-data (zie sbSaveSapKlanten). Alles wat
+// met de hand is toegevoegd zou dus bij de eerstvolgende import verdwijnen.
+// Daarom staan eigen klanten in hun eigen tabel 'eigen_klanten', die door de
+// import nooit wordt aangeraakt. Bij het laden worden ze samengevoegd met de
+// SAP-klanten in één lijst (sapKlanten), zodat élk bestaand scherm — zoeken,
+// klantenlijst, interacties, rapportage — ze automatisch mee toont.
+//
+// Herkenbaar aan: nr begint met 'NEW-' en de vlag _eigen === true.
+let eigenKlanten = [];
+const EIGEN_NR_PREFIX = 'NEW-';
 
 let sapKlanten = [];
 let omzetPeriode = {}; // { Rental: 4, Sales: 4, Safety: 4, HS: null } — max periode per BU voor huidig jaar
@@ -3632,6 +3718,7 @@ function renderKlanten() {
   });
   const filtered = sortKlanten(sapKlanten.filter(k=>{
     const mBU = klantBuFilterVals.has('all') ? true
+      : klantBuFilterVals.has('eigen') ? !!k._eigen
       : klantBuFilterVals.has('fedrus') ? isFedrus(k.naam)
       : klantBuFilterVals.has('cross') ? (k.bus.length > 1)
       : Array.from(klantBuFilterVals).every(function(f){ return k.bus.includes(f); });
@@ -3645,10 +3732,11 @@ function renderKlanten() {
     const buSpans = k.bus.map(b=>'<span class="bu-badge '+BU_CLS[b]+'" style="margin-right:3px">'+BU_MAP[b]+'</span>').join('');
     const cross = k.bus.length>1 ? '<span class="cross-badge">cross-BU</span>' : '';
     const fedrusBadge = isFedrus(k.naam) ? '<span class="fedrus-badge">&#x3A6; Fedrus</span>' : '';
-    const fedrusRowStyle = isFedrus(k.naam) ? 'border-left:3px solid #C4697A;background:#FDF8F8;' : '';
+    const eigenBadge = k._eigen ? '<span style="display:inline-block;font-size:9px;font-weight:700;color:#1F7A5A;background:#E6F4EF;border:1px solid #BFE3D6;border-radius:4px;padding:1px 5px;margin-right:4px">ZELF TOEGEVOEGD</span>' : '';
+    const fedrusRowStyle = isFedrus(k.naam) ? 'border-left:3px solid #C4697A;background:#FDF8F8;' : (k._eigen ? 'border-left:3px solid #1F7A5A;' : '');
     return '<tr style="'+fedrusRowStyle+'cursor:pointer" onclick="showKlantDetail(\''+k.nr.replace(/'/g,"\\'")+'\')" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\''+(isFedrus(k.naam)?'#FDF8F8':'var(--surface)')+'\'">'
-      +'<td style="font-family:monospace;font-size:11px;color:var(--teal-mid);white-space:nowrap;width:90px">'+k.nr+'</td>'
-      +'<td style="font-weight:500;width:220px"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+k.naam+'</div>'+(cross||fedrusBadge?'<div style="margin-top:2px">'+cross+fedrusBadge+'</div>':'')+'</td>'
+      +'<td style="font-family:monospace;font-size:11px;color:'+(k._eigen?'#1F7A5A':'var(--teal-mid)')+';white-space:nowrap;width:90px">'+(k.nr||'—')+'</td>'
+      +'<td style="font-weight:500;width:220px"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+k.naam+'</div>'+(cross||fedrusBadge||eigenBadge?'<div style="margin-top:2px">'+eigenBadge+cross+fedrusBadge+'</div>':'')+'</td>'
       +'<td style="white-space:nowrap">'+buSpans+'</td>'
       +'<td style="text-align:right;font-weight:500">&#8364;'+Math.round(k.omz26).toLocaleString(window.LANG==='en'?'en-GB':window.LANG==='fr'?'fr-BE':'nl-BE')+'</td>'
       +'<td style="text-align:right;color:var(--muted)">&#8364;'+Math.round(k.omz25).toLocaleString(window.LANG==='en'?'en-GB':window.LANG==='fr'?'fr-BE':'nl-BE')+'</td>'
@@ -3667,6 +3755,7 @@ function renderKlanten() {
   applySortHeaders('klantHead',klantSort);
   renderPagination(totalKlant, klantPage, 'klantPageInfo', 'klantPageNum', 'klantPrevBtn', 'klantNextBtn', 'klantPagination', 'klanten');
   renderKlantSummary(filtered);
+  try { renderMergeBanner(); } catch(e) {}
 }
 function renderKlantSummary(filtered) {
   const totOmz26 = filtered.reduce((s,k)=>s+k.omz26,0);
@@ -3716,6 +3805,331 @@ function klantBuFilter(bu,el) {
   renderKlanten();
 }
 
+// ── EIGEN KLANT AANMAKEN / BEWERKEN ───────────────────────────────────────
+var editKlantNr = null;
+var _klantModalAfterSave = null;   // wordt aangeroepen met het nieuwe nummer
+
+// nr          → bestaande eigen klant bewerken
+// prefillNaam → naam al invullen (bv. vanuit het zoekveld)
+// afterSave   → functie die na het bewaren het nieuwe nummer krijgt
+function openKlantModal(nr, prefillNaam, afterSave) {
+  editKlantNr = nr || null;
+  _klantModalAfterSave = afterSave || null;
+  var k = nr ? eigenKlanten.find(function(x){ return x.nr === nr; }) : null;
+
+  document.getElementById('klantModalTitle').textContent = k ? 'Klant bewerken' : 'Nieuwe klant';
+  document.getElementById('kNaam').value    = k ? (k.naam || '') : (prefillNaam || '');
+  document.getElementById('kStad').value    = k ? (k.stad || '') : '';
+  document.getElementById('kBtw').value     = k ? (k.btw || '') : '';
+  document.getElementById('kTel').value     = k ? (k.tel || '') : '';
+  document.getElementById('kEmail').value   = k ? (k.email || '') : '';
+  document.getElementById('kNotitie').value = k ? (k.notitie || '') : '';
+  ['Rental','Sales','Safety','HS'].forEach(function(bu) {
+    var cb = document.getElementById('kBU_' + bu);
+    if (cb) cb.checked = k ? (k.bus || []).indexOf(bu) >= 0 : (!k && currentUser && currentUser.bu === bu);
+  });
+
+  var meta = document.getElementById('klantModalMeta');
+  if (meta) {
+    meta.innerHTML = k
+      ? 'Klantnummer <strong>' + esc(k.nr) + '</strong>'
+        + (k.aangemaaktDoor ? ' · aangemaakt door ' + esc(k.aangemaaktDoor) : '')
+        + (k.aangemaaktOp ? ' op ' + esc(String(k.aangemaaktOp).slice(0,10)) : '')
+      : 'Deze klant krijgt automatisch een nummer (' + esc(_nextEigenNr()) + ') en wordt bewaard in de database.';
+  }
+  var delBtn = document.getElementById('kDeleteBtn');
+  if (delBtn) delBtn.style.display = (k && typeof isAdminUser === 'function' && isAdminUser()) ? '' : 'none';
+
+  document.getElementById('klantModal').style.display = 'flex';
+  setTimeout(function(){ var n = document.getElementById('kNaam'); if (n) n.focus(); }, 60);
+}
+
+function closeKlantModal() {
+  document.getElementById('klantModal').style.display = 'none';
+  editKlantNr = null;
+  _klantModalAfterSave = null;
+}
+
+async function saveKlant() {
+  var naam = document.getElementById('kNaam').value.trim();
+  if (!naam) { alert('Vul minstens de klantnaam in.'); return; }
+
+  // Waarschuw voor dubbels — een tweede "Jansens BVBA" maakt de lijst onbruikbaar.
+  var bestaat = sapKlanten.find(function(x) {
+    return (x.naam || '').trim().toLowerCase() === naam.toLowerCase() && x.nr !== editKlantNr;
+  });
+  if (bestaat) {
+    alert('"' + bestaat.naam + '" bestaat al in de klantenlijst'
+      + (bestaat.nr ? ' (nummer ' + bestaat.nr + ')' : '')
+      + '.\n\nGebruik die klant in plaats van een dubbele aan te maken.');
+    return;
+  }
+
+  var bus = ['Rental','Sales','Safety','HS'].filter(function(bu) {
+    var cb = document.getElementById('kBU_' + bu);
+    return cb && cb.checked;
+  });
+
+  var btn = document.getElementById('kSaveBtn');
+  var oudeTekst = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Bezig...'; }
+
+  var nr = await sbSaveEigenKlant({
+    nr: editKlantNr,
+    naam: naam,
+    bus: bus,
+    stad: document.getElementById('kStad').value.trim(),
+    btw: document.getElementById('kBtw').value.trim(),
+    tel: document.getElementById('kTel').value.trim(),
+    email: document.getElementById('kEmail').value.trim(),
+    notitie: document.getElementById('kNotitie').value.trim()
+  });
+
+  if (btn) { btn.disabled = false; btn.textContent = oudeTekst || 'Opslaan'; }
+  if (!nr) return;   // fout is al aan de gebruiker getoond
+
+  var cb = _klantModalAfterSave;
+  closeKlantModal();
+  try { renderKlanten(); } catch(e) {}
+  if (cb) cb(nr); else alert('Klant "' + naam + '" is aangemaakt met nummer ' + nr + '.\nJe vindt hem nu terug via Klanten en via het zoekveld bij een nieuwe interactie.');
+}
+
+async function deleteEigenKlant() {
+  if (!editKlantNr) return;
+  var k = eigenKlanten.find(function(x){ return x.nr === editKlantNr; });
+  if (!k) return;
+  if (!confirm('Klant "' + k.naam + '" (' + k.nr + ') definitief verwijderen?\n\nReeds geregistreerde interacties blijven bestaan.')) return;
+  var ok = await sbDeleteEigenKlant(editKlantNr);
+  if (!ok) return;
+  closeKlantModal();
+  try { renderKlanten(); } catch(e) {}
+}
+
+// ── SAMENVOEGEN MET EEN SAP-KLANT ─────────────────────────────────────────
+var _mgEigenNr = null;
+var _mgSapNr = null;
+
+// Waarschuwingsbalk boven de klantenlijst. Toont enkel wat de ingelogde
+// gebruiker zelf aanmaakte; beheerders zien alle openstaande gevallen.
+function renderMergeBanner() {
+  var el = document.getElementById('mergeBanner');
+  if (!el) return;
+  var admin = (typeof isAdminUser === 'function' && isAdminUser());
+  var mij = currentUser ? currentUser.name : '';
+  var kand = vindMergeKandidaten().filter(function(k){
+    return admin || (k.eigen.aangemaaktDoor && k.eigen.aangemaaktDoor === mij);
+  });
+  if (!kand.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML = '<div style="background:#FFF8E6;border:1px solid #F0DFAE;border-left:3px solid #E8A317;border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:12px">'
+    + '<div style="font-size:13px;font-weight:700;color:#6B5518;margin-bottom:8px">'
+    +   '&#9888; ' + kand.length + (kand.length === 1 ? ' zelf toegevoegde klant staat nu ook in SAP' : ' zelf toegevoegde klanten staan nu ook in SAP')
+    + '</div>'
+    + '<div style="font-size:12px;color:#6B5518;margin-bottom:10px">Voeg ze samen zodat alle interacties bij de echte SAP-klant komen te staan.</div>'
+    + kand.map(function(k){
+        return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 0;border-top:1px solid #F0DFAE">'
+          + '<span style="font-size:12px;color:var(--ink)"><strong>' + esc(k.eigen.naam) + '</strong> <span style="font-family:monospace;color:#1F7A5A">' + esc(k.eigen.nr) + '</span></span>'
+          + '<span style="font-size:13px;color:var(--muted)">&#8594;</span>'
+          + '<span style="font-size:12px;color:var(--ink)"><strong>' + esc(k.sap.naam) + '</strong> <span style="font-family:monospace;color:var(--teal-mid)">' + esc(k.sap.nr) + '</span></span>'
+          + (admin && k.eigen.aangemaaktDoor ? '<span style="font-size:11px;color:var(--subtle)">aangemaakt door ' + esc(k.eigen.aangemaaktDoor) + '</span>' : '')
+          + '<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="openMergeModal(\'' + esc(k.eigen.nr) + '\',\'' + esc(k.sap.nr).replace(/'/g,"\\'") + '\')">Nakijken &amp; samenvoegen</button>'
+          + '</div>';
+      }).join('')
+    + '</div>';
+}
+
+// Vanuit het klantdetail: sluit het detailvenster en open het samenvoeg-scherm,
+// met de automatisch herkende SAP-klant al voorgesteld (indien gevonden).
+function openMergeVanuitDetail(eigenNr) {
+  var ov = document.getElementById('klantDetailOverlay');
+  if (ov) ov.style.display = 'none';
+  var kand = vindMergeKandidaten().find(function(k){ return k.eigen.nr === eigenNr; });
+  openMergeModal(eigenNr, kand ? kand.sap.nr : null);
+}
+
+function openMergeModal(eigenNr, sapNr) {
+  _mgEigenNr = eigenNr;
+  _mgSapNr = sapNr || null;
+  var e = eigenKlanten.find(function(x){ return x.nr === eigenNr; });
+  if (!e) return;
+
+  document.getElementById('mgEigenInfo').innerHTML =
+    '<div style="font-weight:600">' + esc(e.naam) + '</div>'
+    + '<div style="font-family:monospace;font-size:11px;color:#1F7A5A;margin-top:2px">' + esc(e.nr) + '</div>'
+    + ([e.stad, e.btw, e.tel, e.email].filter(Boolean).length
+        ? '<div style="font-size:11px;color:var(--muted);margin-top:6px">' + [e.stad,e.btw,e.tel,e.email].filter(Boolean).map(esc).join('<br>') + '</div>' : '')
+    + (e.aangemaaktDoor ? '<div style="font-size:11px;color:var(--subtle);margin-top:6px">door ' + esc(e.aangemaaktDoor) + '</div>' : '');
+
+  var zoek = document.getElementById('mgSapZoek');
+  var sug = document.getElementById('mgSapSuggest');
+  if (sug) { sug.innerHTML = ''; sug.style.display = 'none'; }
+  if (zoek) zoek.value = '';
+  _mgRenderSapInfo();
+
+  document.getElementById('mergeModal').style.display = 'flex';
+}
+
+function closeMergeModal() {
+  document.getElementById('mergeModal').style.display = 'none';
+  _mgEigenNr = null; _mgSapNr = null;
+}
+
+function onMergeSapSearch(q) {
+  var sug = document.getElementById('mgSapSuggest');
+  if (!sug) return;
+  q = (q || '').trim().toLowerCase();
+  if (q.length < 2) { sug.innerHTML = ''; sug.style.display = 'none'; return; }
+  // Enkel échte SAP-klanten — een eigen klant samenvoegen met een eigen klant
+  // heeft geen zin en zou het spoor naar SAP net kwijtmaken.
+  var hits = sapKlanten.filter(function(k){
+    return !k._eigen && ((k.naam||'').toLowerCase().indexOf(q) >= 0 || (k.nr||'').toLowerCase().indexOf(q) >= 0);
+  }).slice(0, 8);
+  if (!hits.length) { sug.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted)">Geen SAP-klant gevonden</div>'; sug.style.display = 'block'; return; }
+  sug.innerHTML = hits.map(function(k){
+    return '<div class="sap-item" style="cursor:pointer" onclick="mergeKiesSap(\'' + String(k.nr).replace(/'/g,"\\'") + '\')">'
+      + '<div class="sap-nr">' + esc(k.nr) + '</div>'
+      + '<div class="sap-name">' + esc(k.naam) + '</div>'
+      + '</div>';
+  }).join('');
+  sug.style.display = 'block';
+}
+
+function mergeKiesSap(nr) {
+  _mgSapNr = nr;
+  var sug = document.getElementById('mgSapSuggest');
+  if (sug) { sug.innerHTML = ''; sug.style.display = 'none'; }
+  var zoek = document.getElementById('mgSapZoek');
+  if (zoek) zoek.value = '';
+  _mgRenderSapInfo();
+}
+
+// Toont de gekozen SAP-klant en wat het samenvoegen concreet verplaatst.
+function _mgRenderSapInfo() {
+  var e = eigenKlanten.find(function(x){ return x.nr === _mgEigenNr; });
+  var s = _mgSapNr ? sapKlanten.find(function(x){ return x.nr === _mgSapNr && !x._eigen; }) : null;
+  var info = document.getElementById('mgSapInfo');
+  var impact = document.getElementById('mgImpact');
+  var saveBtn = document.getElementById('mgSaveBtn');
+  var negeerBtn = document.getElementById('mgNegeerBtn');
+
+  if (!s) {
+    if (info) info.innerHTML = '<span style="font-size:12px;color:var(--muted)">Nog geen SAP-klant gekozen.</span>';
+    if (impact) impact.innerHTML = 'Kies hierboven de SAP-klant waarin deze klant moet opgaan.';
+    if (saveBtn) saveBtn.disabled = true;
+    if (negeerBtn) negeerBtn.style.display = 'none';
+    return;
+  }
+
+  if (info) {
+    info.innerHTML = '<div style="font-weight:600">' + esc(s.naam) + '</div>'
+      + '<div style="font-family:monospace;font-size:11px;color:var(--teal-mid);margin-top:2px">' + esc(s.nr) + '</div>'
+      + '<div style="font-size:11px;color:var(--muted);margin-top:6px">Omzet ' + CUR_YEAR + ': &#8364;'
+      + Math.round(s.omz26||0).toLocaleString('nl-BE') + ' &middot; ' + (s.fac||0) + ' facturen</div>';
+  }
+
+  var telLeads = e ? leads.filter(function(l){ return _leadHoortBij(l, e); }).length : 0;
+  var telCont = e ? contacten.filter(function(c){
+    return (c.bedrijf||'').trim().toLowerCase() === (e.naam||'').trim().toLowerCase();
+  }).length : 0;
+
+  if (impact) {
+    impact.innerHTML = '<strong>Wat er gebeurt:</strong><br>'
+      + '&bull; ' + telLeads + (telLeads === 1 ? ' interactie wordt' : ' interacties worden') + ' overgezet naar ' + esc(s.nr) + '<br>'
+      + '&bull; ' + telCont + (telCont === 1 ? ' contactpersoon wordt' : ' contactpersonen worden') + ' aan "' + esc(s.naam) + '" gekoppeld<br>'
+      + '&bull; "' + esc(e ? e.naam : '') + '" verdwijnt uit de klantenlijst (blijft wel bewaard als spoor)<br>'
+      + '<span style="color:#8A6D1F">Dit kan niet met één klik ongedaan gemaakt worden.</span>';
+  }
+  if (saveBtn) saveBtn.disabled = false;
+  if (negeerBtn) negeerBtn.style.display = '';
+}
+
+// Hoort deze interactie bij die eigen klant? Ofwel via het nummer, ofwel —
+// voor oudere registraties — via de bedrijfsnaam.
+function _leadHoortBij(l, e) {
+  if (!l || !e) return false;
+  if (l.sapNr && l.sapNr === e.nr) return true;
+  if (!l.sapNr && (l.bedrijf||'').trim().toLowerCase() === (e.naam||'').trim().toLowerCase()) return true;
+  return false;
+}
+
+async function doMerge() {
+  var e = eigenKlanten.find(function(x){ return x.nr === _mgEigenNr; });
+  var s = _mgSapNr ? sapKlanten.find(function(x){ return x.nr === _mgSapNr && !x._eigen; }) : null;
+  if (!e || !s) { alert('Kies eerst de SAP-klant waarmee je wil samenvoegen.'); return; }
+  if (!confirm('"' + e.naam + '" samenvoegen met SAP-klant ' + s.nr + ' — ' + s.naam + '?\n\nAlle interacties en contacten verhuizen mee.')) return;
+
+  var btn = document.getElementById('mgSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Bezig...'; }
+
+  // Eerst de database markeren. Lukt dat niet, dan raken we niets aan —
+  // beter niets gedaan dan halverwege gestrand.
+  var ok = await _sbUpdateEigenKlantVeld(e.nr, {
+    samengevoegd_met: s.nr,
+    samengevoegd_op: new Date().toISOString(),
+    samengevoegd_door: currentUser ? currentUser.name : null
+  });
+  if (!ok) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Samenvoegen'; }
+    alert('Samenvoegen mislukt — de database kon niet bijgewerkt worden. Er is niets gewijzigd.');
+    return;
+  }
+
+  // Interacties omhangen naar het echte SAP-nummer
+  var gewijzigd = [];
+  leads.forEach(function(l){
+    if (!_leadHoortBij(l, e)) return;
+    l.sapNr = s.nr;
+    l.bedrijf = s.naam;
+    gewijzigd.push(l);
+  });
+
+  // Contacten mee hernoemen zodat ze onder de SAP-klant blijven hangen
+  var oudeNaam = (e.naam||'').trim().toLowerCase();
+  var contactenGewijzigd = 0;
+  contacten.forEach(function(c){
+    if ((c.bedrijf||'').trim().toLowerCase() === oudeNaam) { c.bedrijf = s.naam; contactenGewijzigd++; }
+  });
+
+  saveDataLocal();
+  for (var i = 0; i < gewijzigd.length; i++) {
+    try { await sbSaveOneLead(gewijzigd[i]); } catch(err) { console.warn('merge lead opslaan:', err); }
+  }
+  if (contactenGewijzigd) { try { saveContacten(); } catch(err) {} }
+
+  e.samengevoegdMet = s.nr;
+  mergeEigenKlanten();
+
+  // Wie de klant ooit aanmaakte mag weten dat het gebeurd is.
+  if (e.aangemaaktDoor && currentUser && e.aangemaaktDoor !== currentUser.name) {
+    try {
+      addNotif('Klant "' + e.naam + '" is samengevoegd met SAP',
+        currentUser.name + ' heeft ' + e.nr + ' samengevoegd met ' + s.nr + ' — ' + s.naam + '. '
+          + gewijzigd.length + ' interacties staan nu bij de SAP-klant.',
+        null, e.aangemaaktDoor);
+    } catch(err) {}
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Samenvoegen'; }
+  closeMergeModal();
+  try { renderCurrentView(); renderKlanten(); } catch(err) {}
+  alert('Samengevoegd.\n'
+    + gewijzigd.length + (gewijzigd.length === 1 ? ' interactie' : ' interacties') + ' en '
+    + contactenGewijzigd + (contactenGewijzigd === 1 ? ' contactpersoon' : ' contactpersonen')
+    + ' staan nu bij ' + s.nr + ' — ' + s.naam + '.');
+}
+
+// "Niet dezelfde klant" — onthoudt dit SAP-nummer zodat er niet telkens
+// opnieuw over gemeld wordt.
+async function mergeNegeren() {
+  var e = eigenKlanten.find(function(x){ return x.nr === _mgEigenNr; });
+  if (!e || !_mgSapNr) return;
+  if (!confirm('Onthouden dat "' + e.naam + '" niet dezelfde klant is als ' + _mgSapNr + '?\n\nJe krijgt hierover geen melding meer.')) return;
+  e.mergeNegeren = (e.mergeNegeren || []).concat([_mgSapNr]);
+  await _sbUpdateEigenKlantVeld(e.nr, { merge_negeren: JSON.stringify(e.mergeNegeren) });
+  closeMergeModal();
+  try { renderKlanten(); } catch(err) {}
+}
+
 function showKlantDetail(nr) {
   var k = sapKlanten.find(function(x){ return x.nr === nr; });
   if (!k) return;
@@ -3753,9 +4167,17 @@ function showKlantDetail(nr) {
   var html = '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">'
     + '<div>'
     + '<div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--ink)">'+esc(k.naam)+'</div>'
-    + '<div style="font-family:monospace;font-size:12px;color:var(--teal-mid);margin-top:2px">SAP-nr: '+esc(nr)+'</div>'
+    + (k._eigen
+        ? '<div style="font-family:monospace;font-size:12px;color:#1F7A5A;margin-top:2px">Klantnr: '+esc(nr)+' <span style="font-family:var(--font);font-size:11px;color:var(--muted)">— zelf toegevoegd, nog niet in SAP</span></div>'
+          + (k.stad||k.btw||k.tel||k.email ? '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+[k.stad,k.btw,k.tel,k.email].filter(Boolean).map(esc).join(' · ')+'</div>' : '')
+          + (k.notitie ? '<div style="font-size:12px;color:var(--muted);margin-top:4px;font-style:italic">'+esc(k.notitie)+'</div>' : '')
+        : '<div style="font-family:monospace;font-size:12px;color:var(--teal-mid);margin-top:2px">SAP-nr: '+esc(nr)+'</div>')
     + '</div>'
+    + '<div style="display:flex;gap:8px;align-items:center">'
+    + (k._eigen ? '<button class="btn btn-sm" onclick="openMergeVanuitDetail(\''+esc(nr)+'\')" title="Deze klant bestaat nu ook in SAP">Samenvoegen met SAP</button>' : '')
+    + (k._eigen ? '<button class="btn btn-sm" onclick="document.getElementById(\'klantDetailOverlay\').style.display=\'none\';openKlantModal(\''+esc(nr)+'\')">Bewerken</button>' : '')
     + '<button onclick="document.getElementById(\'klantDetailOverlay\').style.display=\'none\'" style="background:rgba(0,0,0,.06);border:none;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center">✕</button>'
+    + '</div>'
     + '</div>'
     + '<div style="margin-bottom:16px">'+buSpans+'</div>'
 
@@ -3929,18 +4351,35 @@ function onBedrijfSearch(val) {
   document.getElementById('klantKaartWrap').innerHTML = '';
   const box = document.getElementById('sapSuggest');
   if (val.length < 2) { box.classList.remove('show'); return; }
-  const matches = sapKlanten.filter(k=>k.naam.toLowerCase().includes(val.toLowerCase())||k.nr.toLowerCase().includes(val.toLowerCase()));
+  const matches = sapKlanten.filter(k=>(k.naam||'').toLowerCase().includes(val.toLowerCase())||(k.nr||'').toLowerCase().includes(val.toLowerCase()));
   if (!matches.length) {
     box.classList.remove('show');
-    document.getElementById('klantKaartWrap').innerHTML = '<div class="new-klant-note" style="margin-top:8px">Nieuwe klant &#8212; nog niet actief in SAP.</div>';
+    // Geen match? Bied meteen aan om de klant aan te maken, zodat hij daarna
+    // wél terug te vinden is in plaats van enkel als losse tekst op de interactie.
+    document.getElementById('klantKaartWrap').innerHTML =
+      '<div class="new-klant-note" style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+      +'<span>Deze klant staat nog niet in de lijst.</span>'
+      +'<button class="btn btn-primary btn-sm" onclick="nieuweKlantVanuitZoek()" style="flex-shrink:0">+ Klant aanmaken</button>'
+      +'</div>';
     return;
   }
-  box.innerHTML = matches.slice(0,6).map(k=>'<div class="sap-item" onclick="selectSapKlant(\''+k.nr+'\')">'
-    +'<div class="sap-nr">'+k.nr+'</div>'
-    +'<div class="sap-name">'+k.naam+(isFedrus(k.naam)?'<span class="fedrus-badge" style="font-size:9px">&#x3A6; Fedrus</span>':'')+'</div>'
+  box.innerHTML = matches.slice(0,6).map(k=>'<div class="sap-item" onclick="selectSapKlant(\''+String(k.nr).replace(/'/g,"\\'")+'\')">'
+    +'<div class="sap-nr"'+(k._eigen?' style="color:#1F7A5A"':'')+'>'+(k.nr||'—')+'</div>'
+    +'<div class="sap-name">'+k.naam
+      +(k._eigen?'<span style="font-size:9px;font-weight:700;color:#1F7A5A;background:#E6F4EF;border:1px solid #BFE3D6;border-radius:4px;padding:1px 5px;margin-left:6px">ZELF TOEGEVOEGD</span>':'')
+      +(isFedrus(k.naam)?'<span class="fedrus-badge" style="font-size:9px">&#x3A6; Fedrus</span>':'')+'</div>'
     +'<div>'+k.bus.map(b=>'<span class="bu-badge '+BU_CLS[b]+'">'+BU_MAP[b]+'</span>').join('')+'</div>'
     +'</div>').join('');
   box.classList.add('show');
+}
+
+// Opent het klantformulier met de getypte naam al ingevuld en koppelt de
+// nieuwe klant meteen aan de interactie die de gebruiker aan het maken is.
+function nieuweKlantVanuitZoek() {
+  var naam = (document.getElementById('fBedrijf').value || '').trim();
+  openKlantModal(null, naam, function(nr) {
+    selectSapKlant(nr);
+  });
 }
 function selectSapKlant(nr) {
   const k = sapKlanten.find(x=>x.nr===nr);
@@ -3967,6 +4406,23 @@ function selectSapKlant(nr) {
   const otherBus = k.bus.filter(b=>b!==currentUser.bu);
   const crossHtml = otherBus.length ? '<div class="cross-alert"><strong>Cross-sell signaal</strong> &#8212; ook actief bij: '
     +otherBus.map(b=>'<span class="bu-badge '+BU_CLS[b]+'" style="margin:0 3px">'+BU_MAP[b]+'</span>').join('')+'</div>' : '';
+
+  // Zelf toegevoegde klant: geen SAP-omzetcijfers, dus een eigen kaartje zonder
+  // lege nullen — wél duidelijk dat de klant gekend is en gekoppeld wordt.
+  if (k._eigen) {
+    document.getElementById('klantKaartWrap').innerHTML =
+      '<div class="klant-kaart" style="border-left:3px solid #1F7A5A">'
+      +'<div class="klant-kaart-hdr"><div class="klant-kaart-title">Zelf toegevoegde klant</div><div class="klant-nr-tag">'+k.nr+'</div></div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-bottom:6px">'
+      + [k.stad, k.btw, k.tel, k.email].filter(Boolean).map(esc).join(' · ')
+      + (([k.stad,k.btw,k.tel,k.email].filter(Boolean).length) ? '' : 'Nog geen SAP-omzet bekend voor deze klant.')
+      +'</div>'
+      +(k.bus.length ? '<div style="font-size:12px;color:var(--teal-dark)">Actief bij: '+k.bus.map(b=>'<span class="bu-badge '+BU_CLS[b]+'" style="margin-right:3px">'+BU_MAP[b]+'</span>').join('')+'</div>' : '')
+      +crossHtml
+      +'</div>';
+    return;
+  }
+
   document.getElementById('klantKaartWrap').innerHTML =
     '<div class="klant-kaart">'
     +'<div class="klant-kaart-hdr"><div class="klant-kaart-title">Bestaande klant gevonden</div><div class="klant-nr-tag">'+k.nr+'</div></div>'
@@ -4392,8 +4848,10 @@ function onQuickKlantSearch(val) {
   box.innerHTML = matches.slice(0,6).map(k=>{
     const buSpans = k.bus.map(b=>'<span class="bu-badge '+BU_CLS[b]+'">'+BU_MAP[b]+'</span>').join('');
     return '<div class="sap-item" data-nr="'+k.nr+'" onclick="selectQuickKlant(this.dataset.nr)">'
-      +'<div class="sap-nr">'+k.nr+'</div>'
-      +'<div class="sap-name">'+k.naam+(isFedrus(k.naam)?'<span class="fedrus-badge" style="font-size:9px">&#x3A6; Fedrus</span>':'')+'</div>'
+      +'<div class="sap-nr"'+(k._eigen?' style="color:#1F7A5A"':'')+'>'+k.nr+'</div>'
+      +'<div class="sap-name">'+k.naam
+        +(k._eigen?'<span style="font-size:9px;font-weight:700;color:#1F7A5A;background:#E6F4EF;border:1px solid #BFE3D6;border-radius:4px;padding:1px 5px;margin-left:6px">ZELF TOEGEVOEGD</span>':'')
+        +(isFedrus(k.naam)?'<span class="fedrus-badge" style="font-size:9px">&#x3A6; Fedrus</span>':'')+'</div>'
       +'<div>'+buSpans+'</div>'
       +'</div>';
   }).join('');
@@ -5803,7 +6261,10 @@ async function sbLoadBedrijvenV2() {
     return all.map(function(r) {
       return {
         bedrijfId: r.id,
-        nr: r.sap_nr || '',
+        // Zonder SAP-nummer toch een uniek nummer geven. Anders krijgen álle
+        // in de app aangemaakte bedrijven hetzelfde lege nummer en selecteert
+        // de app bij een klik telkens het verkeerde bedrijf.
+        nr: r.sap_nr || ('APP-' + String(r.id || '').slice(0, 8)),
         naam: r.naam || '',
         bus: _parseJsonArray(r.bus),
         omz26: r.omz26 || 0,
@@ -5848,6 +6309,208 @@ async function sbLoadContactenV2() {
       };
     });
   } catch(e) { console.warn('sbLoadContactenV2:', e); return null; }
+}
+
+// === EIGEN KLANTEN: laden, samenvoegen, bewaren ============================
+
+// Zet een rij uit de tabel 'eigen_klanten' om naar dezelfde vorm als een
+// SAP-klant, zodat de rest van de app geen verschil merkt.
+function _mapEigenKlant(r) {
+  return {
+    nr: r.nr,
+    naam: r.naam || '',
+    bus: _parseJsonArray(r.bus),
+    omz26: 0, omz25: 0, fac: 0, ord: 0,
+    stad: r.stad || '',
+    btw: r.btw || '',
+    tel: r.tel || '',
+    email: r.email || '',
+    notitie: r.notitie || '',
+    aangemaaktDoor: r.aangemaakt_door || '',
+    aangemaaktOp: r.aangemaakt_op || '',
+    samengevoegdMet: r.samengevoegd_met || null,
+    samengevoegdOp: r.samengevoegd_op || null,
+    mergeGemeld: _parseJsonArray(r.merge_gemeld),
+    mergeNegeren: _parseJsonArray(r.merge_negeren),
+    _eigen: true                    // vlag: handmatig aangemaakt, niet uit SAP
+  };
+}
+
+// Haalt alle eigen klanten op. Bewust ZONDER cache: het zijn er weinig en zo is
+// een pas toegevoegde klant meteen na een refresh zichtbaar voor iedereen.
+async function sbLoadEigenKlanten() {
+  var db = getSbClient();
+  if (!db) return false;
+  try {
+    var res = await db.from('eigen_klanten').select('*').order('naam', {ascending:true});
+    if (res.error) {
+      // Tabel bestaat nog niet? Geen drama — app werkt gewoon verder zonder.
+      console.warn('eigen_klanten:', res.error.message);
+      return false;
+    }
+    eigenKlanten = (res.data || []).map(_mapEigenKlant);
+    mergeEigenKlanten();
+    console.log('Eigen klanten geladen (' + eigenKlanten.length + ' records)');
+    return true;
+  } catch(e) { console.warn('sbLoadEigenKlanten:', e); return false; }
+}
+
+// Voegt de eigen klanten toe aan de gedeelde lijst sapKlanten. Idempotent:
+// bestaande eigen records worden eerst verwijderd, dus meermaals aanroepen
+// levert nooit dubbels op.
+function mergeEigenKlanten() {
+  sapKlanten = sapKlanten.filter(function(k){ return !k._eigen; });
+  eigenKlanten.forEach(function(k){
+    // Al samengevoegd met een echte SAP-klant? Dan niet meer in de lijst tonen.
+    if (k.samengevoegdMet) return;
+    // Al een SAP-klant met exact dezelfde naam? Dan die laten primeren.
+    var dubbel = sapKlanten.some(function(s){
+      return (s.naam||'').trim().toLowerCase() === (k.naam||'').trim().toLowerCase();
+    });
+    if (!dubbel) sapKlanten.push(k);
+  });
+  _sapNameCache = {};
+}
+
+// ── HERKENNEN: is een eigen klant intussen een échte SAP-klant geworden? ───
+// Bedrijfsnamen worden zelden identiek getypt ("Jansens NV" vs "JANSENS N.V.").
+// Daarom eerst afvlakken: kleine letters, geen accenten, geen leestekens en
+// zonder rechtsvorm (nv, bvba, ...). Zo blijft de kern van de naam over.
+var _RECHTSVORMEN = ['nv','bv','bvba','sa','srl','sprl','vzw','asbl','vof','comm v','commv',
+                     'cv','cvba','gcv','scs','sc','ltd','gmbh','bvbva','eenmanszaak','be'];
+function _normaliseerKlantNaam(naam) {
+  var s = (naam || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')   // accenten weg
+    .toLowerCase()
+    .replace(/\./g, '')                                  // punten eerst weg: "n.v." wordt "nv"
+    .replace(/[^a-z0-9 ]+/g, ' ')                        // overige leestekens weg
+    .replace(/\s+/g, ' ')
+    .trim();
+  var woorden = s.split(' ').filter(function(w){ return w && _RECHTSVORMEN.indexOf(w) < 0; });
+  return woorden.join(' ');
+}
+
+// Vergelijkt twee namen. Exact gelijk na afvlakken, of de ene zit volledig in
+// de andere (bv. "jansens bouw" in "jansens bouw en renovatie") — maar enkel
+// bij namen van minstens 8 tekens, anders krijg je te veel valse treffers.
+function _naamKomtOvereen(a, b) {
+  var na = _normaliseerKlantNaam(a), nb = _normaliseerKlantNaam(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  var kort = na.length <= nb.length ? na : nb;
+  var lang = na.length <= nb.length ? nb : na;
+  return kort.length >= 8 && lang.indexOf(kort) >= 0;
+}
+
+// Geeft de eigen klanten terug die nu ook als SAP-klant lijken te bestaan.
+// → [{ eigen: <eigen klant>, sap: <sap klant> }]
+function vindMergeKandidaten() {
+  var uit = [];
+  eigenKlanten.forEach(function(e) {
+    if (e.samengevoegdMet) return;
+    var hit = sapKlanten.find(function(s) {
+      if (s._eigen) return false;                                  // geen eigen-met-eigen
+      if ((e.mergeNegeren || []).indexOf(s.nr) >= 0) return false; // eerder afgewezen
+      return _naamKomtOvereen(e.naam, s.naam);
+    });
+    if (hit) uit.push({ eigen: e, sap: hit });
+  });
+  return uit;
+}
+
+// Verwittigt de collega die de klant ooit aanmaakte — één keer per SAP-nummer,
+// zodat niemand bij elke keer inloggen dezelfde melding krijgt.
+async function checkMergeMeldingen() {
+  var kandidaten = vindMergeKandidaten();
+  for (var i = 0; i < kandidaten.length; i++) {
+    var e = kandidaten[i].eigen, s = kandidaten[i].sap;
+    if ((e.mergeGemeld || []).indexOf(s.nr) >= 0) continue;   // al gemeld
+    if (!e.aangemaaktDoor) continue;                          // niemand om te verwittigen
+    try {
+      addNotif(
+        'Klant "' + e.naam + '" staat nu in SAP',
+        'De klant die je zelf toevoegde (' + e.nr + ') komt nu voor in de SAP-export als '
+          + s.nr + ' — ' + s.naam + '. Ga naar Klanten om beide samen te voegen, '
+          + 'dan verhuizen alle interacties mee naar de echte SAP-klant.',
+        null,
+        e.aangemaaktDoor
+      );
+      e.mergeGemeld = (e.mergeGemeld || []).concat([s.nr]);
+      await _sbUpdateEigenKlantVeld(e.nr, { merge_gemeld: JSON.stringify(e.mergeGemeld) });
+    } catch(err) { console.warn('checkMergeMeldingen:', err); }
+  }
+  try { renderMergeBanner(); } catch(e) {}
+}
+
+// Werkt losse velden van één eigen klant bij, zonder de rest te overschrijven.
+async function _sbUpdateEigenKlantVeld(nr, velden) {
+  var db = getSbClient();
+  if (!db) return false;
+  try {
+    var res = await db.from('eigen_klanten').update(velden).eq('nr', nr);
+    if (res.error) throw res.error;
+    return true;
+  } catch(e) { console.warn('_sbUpdateEigenKlantVeld:', e); return false; }
+}
+
+// Bepaalt het volgende vrije nummer: NEW-0001, NEW-0002, ...
+// Een uniek nummer is essentieel — de hele app zoekt klanten op via hun nummer.
+function _nextEigenNr() {
+  var max = 0;
+  eigenKlanten.forEach(function(k){
+    var m = /^NEW-(\d+)$/.exec(k.nr || '');
+    if (m) { var n = parseInt(m[1], 10); if (n > max) max = n; }
+  });
+  return EIGEN_NR_PREFIX + String(max + 1).padStart(4, '0');
+}
+
+// Bewaart één eigen klant in Supabase (nieuw = insert, bestaand = update).
+// Retourneert het nummer bij succes, of null bij een fout.
+async function sbSaveEigenKlant(k) {
+  var db = getSbClient();
+  if (!db) { alert('Geen databaseverbinding — klant niet opgeslagen.'); return null; }
+  var nr = k.nr || _nextEigenNr();
+  var row = {
+    nr: nr,
+    naam: (k.naam || '').trim(),
+    bus: JSON.stringify(k.bus || []),
+    stad: k.stad || null,
+    btw: k.btw || null,
+    tel: k.tel || null,
+    email: k.email || null,
+    notitie: k.notitie || null,
+    aangemaakt_door: k.aangemaaktDoor || (currentUser ? currentUser.name : null)
+  };
+  try {
+    var res = await db.from('eigen_klanten').upsert(row, {onConflict: 'nr'}).select('*').single();
+    if (res.error) throw res.error;
+    var mapped = _mapEigenKlant(res.data);
+    var idx = eigenKlanten.findIndex(function(x){ return x.nr === nr; });
+    if (idx >= 0) eigenKlanten[idx] = mapped; else eigenKlanten.push(mapped);
+    mergeEigenKlanten();
+    return nr;
+  } catch(e) {
+    console.warn('sbSaveEigenKlant:', e);
+    var msg = (e.message || e) + '';
+    if (/relation .*eigen_klanten.* does not exist|could not find the table/i.test(msg)) {
+      alert('De tabel "eigen_klanten" bestaat nog niet in de database.\n\nVraag je beheerder om het SQL-script één keer uit te voeren in Supabase.');
+    } else {
+      alert('Klant opslaan mislukt: ' + msg);
+    }
+    return null;
+  }
+}
+
+async function sbDeleteEigenKlant(nr) {
+  var db = getSbClient();
+  if (!db) return false;
+  try {
+    var res = await db.from('eigen_klanten').delete().eq('nr', nr);
+    if (res.error) throw res.error;
+    eigenKlanten = eigenKlanten.filter(function(x){ return x.nr !== nr; });
+    mergeEigenKlanten();
+    return true;
+  } catch(e) { console.warn('sbDeleteEigenKlant:', e); alert('Klant verwijderen mislukt: ' + (e.message||e)); return false; }
 }
 
 async function sbLoadSapKlanten(forceRefresh) {
@@ -5978,6 +6641,12 @@ async function sbLoadAll() {
     var ok1 = false, ok2 = false, ok3 = false;
     try { ok1 = await sbLoadLeads(); } catch(e) { console.warn('sbLoadLeads error:', e); }
     try { ok2 = await sbLoadSapKlanten(); } catch(e) { console.warn('sbLoadSapKlanten error:', e); }
+    // Eigen (handmatig aangemaakte) klanten erbij — altijd ná de SAP-klanten,
+    // want mergeEigenKlanten() vult de lijst sapKlanten aan.
+    try { await sbLoadEigenKlanten(); } catch(e) { console.warn('sbLoadEigenKlanten error:', e); }
+    // Is een zelf toegevoegde klant intussen een echte SAP-klant geworden?
+    // Dan krijgt de collega die hem aanmaakte een melding om samen te voegen.
+    try { await checkMergeMeldingen(); } catch(e) { console.warn('checkMergeMeldingen error:', e); }
     try { ok3 = await sbLoadContacten(); } catch(e) { console.warn('sbLoadContacten error:', e); }
     try { await sbLoadUsers(); syncAllMembers(); ensureBmDefaults(); rebuildUserDropdowns(currentUser.name); mergeTeamProfilesFromUsers(); } catch(e) { console.warn('sbLoadUsers error:', e); }
     try { await sbLoadPasswords(); } catch(e) { console.warn('sbLoadPasswords error:', e); }
@@ -6351,6 +7020,12 @@ function loadAllFiles() {
         localStorage.removeItem('helicrm_sap_cache_v1');
         localStorage.removeItem('helicrm_sap_cache_ts_v1');
         localStorage.removeItem('helicrm_omzetperiode_v1');
+        // De import heeft sapKlanten volledig herbouwd → eigen klanten opnieuw
+        // toevoegen, anders zijn ze tot de volgende refresh niet zichtbaar.
+        mergeEigenKlanten();
+        // Net geïmporteerde SAP-klanten kunnen zelf toegevoegde klanten zijn
+        // geworden → meteen nakijken en de betrokken collega's verwittigen.
+        checkMergeMeldingen();
         sbSaveContacten().then(function(){
           renderCurrentView(); renderKlanten(); updateNotifBadge();
           if (statusEl) {
@@ -6455,8 +7130,13 @@ async function sbSaveSapKlanten() {
   try {
     // Eerst alles wissen zodat oude/ongeldige records niet blijven staan
     await db.from('sap_klanten').delete().neq('nr', '___NOEXIST___');
-    var rows = sapKlanten.map(function(k) {
+    // BELANGRIJK: eigen (handmatig aangemaakte) klanten horen hier NIET bij.
+    // Ze staan in hun eigen tabel 'eigen_klanten' en zouden bij de volgende
+    // import mee gewist worden als we ze hier zouden wegschrijven.
+    var rows = sapKlanten.filter(function(k){ return !k._eigen; }).map(function(k) {
       var r = Object.assign({}, k);
+      // Velden die enkel in de app bestaan en niet in de tabel sap_klanten.
+      ['_eigen','btw','tel','email','notitie','aangemaaktDoor','aangemaaktOp'].forEach(function(f){ delete r[f]; });
       if (typeof r.bus !== 'string') r.bus = JSON.stringify(r.bus || []);
       if (OMZBU_COLUMN_READY) { r.omzbu = JSON.stringify(r.omzBU || {}); }
       delete r.omzBU;
