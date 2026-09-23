@@ -663,6 +663,7 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
           </div>
           <div id="contactSuggest" style="position:absolute;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.15);max-height:240px;overflow-y:auto;display:none;left:0;right:0;top:100%"></div>
         </div>
+        <div class="form-group"><label class="form-label">Functie</label><input class="form-input" id="fFunctie" placeholder="Bv. zaakvoerder, werfleider, aankoper"/></div>
         <div class="form-group"><label class="form-label">E-mail</label><input class="form-input" id="fEmail" type="email" placeholder="email@bedrijf.be" oninput="this.style.borderColor=''"/></div>
         <div class="form-group"><label class="form-label" data-i18n="col_telefoon">Telefoon</label><input class="form-input" id="fTel" placeholder="+32 ..." oninput="this.style.borderColor=''"/></div>
         <div id="newContactHint" style="display:none;grid-column:1/-1;background:#FFF8F0;border:1px solid var(--orange);border-radius:var(--radius);padding:8px 12px;font-size:12px;color:var(--orange)">
@@ -923,6 +924,7 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
     <div class="tbl-wrap"><div class="tbl-scroll"><table>
       <thead><tr>
         <th>Naam</th>
+        <th style="width:150px">Functie</th>
         <th data-i18n="col_bedrijf">Bedrijf</th>
         <th>BU</th>
         <th>E-mail</th>
@@ -1253,6 +1255,12 @@ CREATE TABLE IF NOT EXISTS sap_klanten (
   <div class="view" id="view-badges">
     <div class="page-header">
       <div><div class="page-title">Cross-sell badges</div><div class="page-sub" id="badgesSub">Verdien badges door bezoeken door te sturen naar andere BU's</div></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="showCrossSellDetail(currentUser.name)">&#8599; Mijn cross-sells</button>
+        <select class="form-select" id="csPersoonSelect" onchange="kiesCrossSellPersoon(this)" style="width:210px;padding:5px 10px;font-size:12px">
+          <option value="">Cross-sells van een collega...</option>
+        </select>
+      </div>
     </div>
     <div id="badgesContent"></div>
   </div>
@@ -1261,10 +1269,14 @@ CREATE TABLE IF NOT EXISTS sap_klanten (
     <div class="page-header">
       <div><div class="page-title">&#128200; Rapportage</div><div class="page-sub" id="rapportSub"></div></div>
       <div class="filter-row">
-        <button class="filter-btn" id="rp_7" onclick="setRapportPeriode('7',this)">7 dagen</button>
-        <button class="filter-btn" id="rp_14" onclick="setRapportPeriode('14',this)">14 dagen</button>
         <button class="filter-btn active" id="rp_maand" onclick="setRapportPeriode('maand',this)">Deze maand</button>
         <button class="filter-btn" id="rp_vorige" onclick="setRapportPeriode('vorige',this)">Vorige maand</button>
+        <div style="display:flex;align-items:center;gap:6px;margin-left:10px;padding-left:10px;border-left:1px solid var(--border)">
+          <span style="font-size:12px;color:var(--muted)">Van</span>
+          <input type="date" class="form-input" id="rpVan" onchange="setRapportCustom()" style="width:145px;padding:4px 8px;font-size:12px"/>
+          <span style="font-size:12px;color:var(--muted)">tot</span>
+          <input type="date" class="form-input" id="rpTot" onchange="setRapportCustom()" style="width:145px;padding:4px 8px;font-size:12px"/>
+        </div>
       </div>
     </div>
     <div class="filter-row" id="rapportBuFilters" style="display:none;margin-bottom:14px"></div>
@@ -3006,9 +3018,11 @@ function selectContact(c) {
   var fContact = document.getElementById('fContact');
   var fEmail   = document.getElementById('fEmail');
   var fTel     = document.getElementById('fTel');
+  var fFunctie = document.getElementById('fFunctie');
   if (fContact) { fContact.value = c.naam || ''; fContact.dataset.newContact = ''; }
   if (fEmail)   { fEmail.value   = c.email || ''; fEmail.style.borderColor = ''; }
   if (fTel)     { fTel.value     = c.tel || ''; fTel.style.borderColor = ''; }
+  if (fFunctie) { fFunctie.value = c.functie || ''; }
   var hint = document.getElementById('newContactHint');
   if (hint) hint.style.display = 'none';
   // Auto-vul bedrijf als het nog leeg is en het contact een bedrijf heeft
@@ -4399,8 +4413,10 @@ function selectSapKlant(nr) {
       fContact.value = '';
       var fEmail = document.getElementById('fEmail');
       var fTel   = document.getElementById('fTel');
+      var fFunc  = document.getElementById('fFunctie');
       if (fEmail) { fEmail.value = ''; fEmail.style.borderColor = ''; }
       if (fTel)   { fTel.value   = ''; fTel.style.borderColor   = ''; }
+      if (fFunc)  { fFunc.value  = ''; }
     }
   }
   const otherBus = k.bus.filter(b=>b!==currentUser.bu);
@@ -4703,18 +4719,25 @@ function saveLead() {
   const contactNaam = document.getElementById('fContact').value.trim();
   const contactEmail = document.getElementById('fEmail').value.trim();
   const contactTel = document.getElementById('fTel').value.trim();
+  const contactFunctie = (document.getElementById('fFunctie') ? document.getElementById('fFunctie').value : '').trim();
   if (contactNaam) {
     const bestaatAl = contacten.find(function(c) {
       return c.naam.toLowerCase() === contactNaam.toLowerCase() &&
              (c.bedrijf||'').toLowerCase() === bedrijf.toLowerCase();
     });
+    // Bestaat het contact al maar was de functie nog niet ingevuld? Dan vullen
+    // we ze alsnog aan — zo wordt de contactenlijst gaandeweg completer.
+    if (bestaatAl && contactFunctie && !(bestaatAl.functie||'').trim()) {
+      bestaatAl.functie = contactFunctie;
+      saveContacten();
+    }
     if (!bestaatAl) {
       var nieuwContact = {
         id: 'c' + Date.now(),
         naam: contactNaam,
         bedrijf: bedrijf,
         bu: bu,
-        functie: '',
+        functie: contactFunctie,
         email: contactEmail,
         tel: contactTel,
         notitie: '',
@@ -4741,7 +4764,7 @@ function saveLead() {
   setTimeout(()=>showDetail(nr),50);
 }
 function resetNieuw() {
-  ['fBedrijf','fContact','fEmail','fTel','fOmschr','fWaarde','fWerf','fInteractieNote','nVolgende','nTegenWanneer'].forEach(id=>{const e=document.getElementById(id);if(e){e.value='';e.style.borderColor='';if(e.dataset)e.dataset.newContact='';}});
+  ['fBedrijf','fContact','fFunctie','fEmail','fTel','fOmschr','fWaarde','fWerf','fInteractieNote','nVolgende','nTegenWanneer'].forEach(id=>{const e=document.getElementById(id);if(e){e.value='';e.style.borderColor='';if(e.dataset)e.dataset.newContact='';}});
   var _rm=document.getElementById('nRemindMe'); if(_rm) _rm.checked=false;
   var _di=document.getElementById('fInteractieDatum'); if(_di) _di.value=new Date().toISOString().slice(0,10);
   nieuwType = null;
@@ -5262,6 +5285,10 @@ function confirmRoute() {
   if(detailLeadId===routeLeadId)showDetail(routeLeadId);
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');}
+// Tegenhanger van closeModal. Ontbrak in de code, waardoor o.a. het doorklikken
+// naar de cross-sells van iemand in het badges-scherm een fout gaf en het
+// venster nooit opende.
+function openModal(id){var el=document.getElementById(id); if(el) el.classList.add('open');}
 
 // ── NOTIFS ────────────────────────────────────────────────────────────────
 // Notificaties worden naar Supabase (tabel "notificaties") gesynchroniseerd
@@ -5523,19 +5550,57 @@ function renderBadges() {
         + '</div>';
     });
   }
+  if (scores.length > 10) {
+    lbHtml += '<div style="font-size:11px;color:var(--subtle);padding-top:8px">Enkel de top 10 wordt getoond. Gebruik de keuzelijst bovenaan om iemand anders te bekijken.</div>';
+  }
   lbHtml += '</div>';
 
   document.getElementById('badgesContent').innerHTML = cardsHtml + lbHtml;
+
+  // Keuzelijst bovenaan vullen: iedereen die cross-sells kan doen, ook wie er
+  // nog geen heeft — anders kan je je eigen nul-stand niet bekijken.
+  var sel = document.getElementById('csPersoonSelect');
+  if (sel) {
+    var alle = Object.keys(nameSet).sort(function(a, b){ return a.localeCompare(b); });
+    sel.innerHTML = '<option value="">Cross-sells van een collega...</option>'
+      + alle.map(function(n){
+          var c = getCrossCount(n);
+          return '<option value="' + esc(n) + '">' + esc(n) + ' (' + c + ')</option>';
+        }).join('');
+  }
+}
+
+function kiesCrossSellPersoon(sel) {
+  if (!sel || !sel.value) return;
+  showCrossSellDetail(sel.value);
+  sel.selectedIndex = 0;   // terug op de standaardtekst zetten
 }
 
 // ── CROSS-SELL DETAIL (leaderboard klik) ─────────────────────────────────
 function showCrossSellDetail(naam) {
   var items = leads.filter(function(l){ return l.doorgestuurdDoor === naam; })
-    .sort(function(a,b){ return b.datum.localeCompare(a.datum); });
-  document.getElementById('csdTitle').textContent = naam;
-  document.getElementById('csdSub').textContent = items.length + ' cross-sell' + (items.length !== 1 ? 's' : '') + ' verstuurd';
+    .sort(function(a,b){ return (b.datum||'').localeCompare(a.datum||''); });
+  var ikZelf = currentUser && naam === currentUser.name;
+  document.getElementById('csdTitle').textContent = ikZelf ? 'Mijn cross-sells' : naam;
+
+  // Korte samenvatting: hoeveel verstuurd en wat is er intussen mee gebeurd.
+  var gewonnen = items.filter(function(l){ return l.status === 'Gewonnen'; }).length;
+  var verloren = items.filter(function(l){ return l.status === 'Verloren'; }).length;
+  var lopend   = items.length - gewonnen - verloren;
+  var delen = [items.length + ' cross-sell' + (items.length !== 1 ? 's' : '') + ' verstuurd'];
+  if (items.length) {
+    delen.push(gewonnen + ' gewonnen');
+    delen.push(lopend + ' lopend');
+    delen.push(verloren + ' verloren');
+  }
+  document.getElementById('csdSub').textContent = delen.join(' · ');
+
   if (!items.length) {
-    document.getElementById('csdBody').innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 0">Geen cross-sells gevonden.</div>';
+    document.getElementById('csdBody').innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 0">'
+      + (ikZelf
+          ? 'Je hebt nog geen bezoeken doorgestuurd naar een andere BU. Dat doe je bij een interactie via de knop Cross-sell.'
+          : 'Deze collega heeft nog geen cross-sells verstuurd.')
+      + '</div>';
   } else {
     var buCls = BU_CLS, buMap = BU_MAP;
     document.getElementById('csdBody').innerHTML = items.map(function(l) {
@@ -7800,6 +7865,8 @@ function printBriefing() {
 /* ── EINDE BRIEFING MODULE ────────────────────────────────────────────────── */
 
 var rapportPeriode = 'maand';
+var rapportVan = null;   // 'YYYY-MM-DD' — enkel gebruikt bij rapportPeriode 'custom'
+var rapportTot = null;
 var rapportBU = null;
 var rapportSelectedAM = null;
 var rapportSort = {col:'tot', dir:'desc'};
@@ -7826,7 +7893,32 @@ function setRapportPeriode(p, el) {
   rapportPeriode = p;
   document.querySelectorAll('#view-rapport .page-header .filter-btn').forEach(function(b){ b.classList.remove('active'); });
   if (el) el.classList.add('active');
+  syncRapportDatums();   // toon in de datumvelden welke periode nu getoond wordt
   renderRapport();
+}
+
+// Vrije periode: de gebruiker koos zelf een van- en tot-datum.
+function setRapportCustom() {
+  var vEl = document.getElementById('rpVan');
+  var tEl = document.getElementById('rpTot');
+  if (!vEl || !tEl) return;
+  var v = vEl.value, tt = tEl.value;
+  if (!v || !tt) return;                       // wacht tot beide ingevuld zijn
+  if (v > tt) { var h = v; v = tt; tt = h; vEl.value = v; tEl.value = tt; }  // omgekeerd ingevuld → omwisselen
+  rapportVan = v;
+  rapportTot = tt;
+  rapportPeriode = 'custom';
+  document.querySelectorAll('#view-rapport .page-header .filter-btn').forEach(function(b){ b.classList.remove('active'); });
+  renderRapport();
+}
+
+// Zet de datumvelden gelijk aan de periode die nu getoond wordt.
+function syncRapportDatums() {
+  var r = rapportRange();
+  var vEl = document.getElementById('rpVan');
+  var tEl = document.getElementById('rpTot');
+  if (vEl) vEl.value = r.s;
+  if (tEl) tEl.value = r.e;
 }
 function setRapportBU(bu, el) {
   rapportBU = bu;
@@ -7838,15 +7930,18 @@ function setRapportBU(bu, el) {
 function rapportRange() {
   var now = new Date();
   var start, end;
+  // Vrij gekozen periode van-tot
+  if (rapportPeriode === 'custom' && rapportVan && rapportTot) {
+    return {
+      s: rapportVan,
+      e: rapportTot,
+      start: new Date(rapportVan + 'T00:00:00'),
+      end:   new Date(rapportTot + 'T00:00:00')
+    };
+  }
   if (rapportPeriode === 'vorige') {
     start = new Date(now.getFullYear(), now.getMonth()-1, 1);
     end   = new Date(now.getFullYear(), now.getMonth(), 0);
-  } else if (rapportPeriode === '7') {
-    start = new Date(now.getTime() - 6*864e5);
-    end   = now;
-  } else if (rapportPeriode === '14') {
-    start = new Date(now.getTime() - 13*864e5);
-    end   = now;
   } else {
     // 'maand' = deze maand (1ste tot vandaag)
     start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -8515,6 +8610,11 @@ function toggleEditSalesOpvolg(){
 
 
 function renderRapport() {
+  // Eerste keer dat het scherm opent: toon de huidige periode in de datumvelden.
+  try {
+    var _rpV = document.getElementById('rpVan');
+    if (_rpV && !_rpV.value) syncRapportDatums();
+  } catch(e) {}
   var RBU_ORDER = ['Rental','Sales','Safety','HS','TD'];
   var isAdm = isAdminUser();
   var mbus = isAdm ? null : managerBUs();
@@ -8928,7 +9028,7 @@ function renderContacten() {
   const q = (document.getElementById('contactSearch')?.value || '').toLowerCase();
   let filtered = contacten.filter(c => {
     const buOk = contactBuFilterVals.has('all') || (c.bu||'').split(',').map(s=>s.trim()).some(function(b){return contactBuFilterVals.has(b);});
-    const zoekVeld = ((c.naam||'') + ' ' + (c.bedrijf||'') + ' ' + (c.email||'')).toLowerCase();
+    const zoekVeld = ((c.naam||'') + ' ' + (c.bedrijf||'') + ' ' + (c.email||'') + ' ' + (c.functie||'')).toLowerCase();
     const qOk = !q || q.trim().split(/\s+/).every(word => zoekVeld.includes(word));
     return buOk && qOk;
   });
@@ -8937,7 +9037,7 @@ function renderContacten() {
   const tbody = document.getElementById('contactenTbody');
   if (!tbody) return;
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">'+t('geen_contacten')+'</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">'+t('geen_contacten')+'</td></tr>';
     renderPagination(0, 0, 'contactPageInfo', 'contactPageNum', 'contactPrevBtn', 'contactNextBtn', 'contactPagination', 'contacten');
     return;
   }
@@ -8946,9 +9046,10 @@ function renderContacten() {
   tbody.innerHTML = contactSlice.map(c => `
     <tr>
       <td>
-        <strong>${c.naam}</strong>${c.functie ? '<div style="font-size:11px;color:var(--muted)">' + c.functie + '</div>' : ''}
+        <strong>${c.naam}</strong>
         ${c.notitie ? '<div style="font-size:11px;color:var(--muted);margin-top:3px;font-style:italic;max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(c.notitie) + '">📝 ' + esc(c.notitie) + '</div>' : ''}
       </td>
+      <td>${c.functie ? esc(c.functie) : '<span style="color:var(--subtle)">—</span>'}</td>
       <td>${(function(){ if(!c.bedrijf) return '—'; var nr=sapNrByName(c.bedrijf); if(!nr) return c.bedrijf; return '<a href="javascript:void(0)" onclick="showKlantDetail(&quot;'+String(nr).replace(/"/g,'')+'&quot;)" style="color:var(--blue);font-weight:500;text-decoration:none;border-bottom:1px dotted var(--blue)" title="Open SAP-klantprofiel">'+c.bedrijf+'</a>'; })()}</td>
       <td>${c.bu ? c.bu.split(',').map(b=>b.trim()).filter(Boolean).map(b=>'<span class="bu-badge" style="background:var(--accent-light);color:var(--accent);margin-right:3px">'+b+'</span>').join('') : '—'}</td>
       <td>${c.email ? '<a href="mailto:' + c.email + '" style="color:var(--accent)">' + c.email + '</a>' : '—'}</td>
