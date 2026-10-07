@@ -3463,6 +3463,7 @@ function updateRapportNav() {
   var n = document.getElementById('nav-rapport');
   if (n) n.style.display = (currentUser.role === 'bm' || isAdminUser()) ? 'flex' : 'none';
   updateImportNav();
+  updateExportBtn();
 }
 
 // "Bestanden laden" staat in het menu voor beheerders en voor BU-managers.
@@ -7691,10 +7692,48 @@ function mergeOmzet(existing, newItems) {
   });
 }
 
+// Welke BU's mag de ingelogde gebruiker exporteren?
+//   null          = alles (beheerder)
+//   []            = geen toegang
+//   ['Rental',..] = enkel deze BU's (BU-manager)
+function mijnExportBus() {
+  if (isAdminUser()) return null;
+  if (currentUser && currentUser.role === 'bm') return managerBUs();
+  return [];
+}
+
+// Toont de exportknop voor beheerders en BU-managers. Een BU-manager krijgt
+// enkel de interacties van de eigen business unit(s) in het bestand.
+function updateExportBtn() {
+  var btn = document.getElementById('exportBtn');
+  if (!btn) return;
+  var mijn = mijnExportBus();
+  var mag = (mijn === null) || mijn.length > 0;
+  btn.style.display = mag ? 'block' : 'none';
+  if (!mag) return;
+  if (mijn === null) {
+    btn.title = 'Alle interacties van alle business units';
+  } else {
+    var labels = mijn.map(function(b){ return BU_LABELS_FULL[b] || BU_MAP[b] || b; }).join(' en ');
+    btn.title = 'Enkel de interacties van ' + labels;
+  }
+}
+
 function exportCrmExcel() {
   try {
+    var mijn = mijnExportBus();
+    if (mijn && !mijn.length) { alert('Je hebt geen toegang tot de export.'); return; }
+
+    // Beheerder krijgt alles; een BU-manager enkel de eigen business unit(s).
+    var bron = (mijn === null) ? leads : leads.filter(function(l){ return mijn.indexOf(l.bu) >= 0; });
+    var buLabels = mijn ? mijn.map(function(b){ return BU_LABELS_FULL[b] || BU_MAP[b] || b; }).join(' en ') : '';
+    if (!bron.length) {
+      alert('Geen interacties gevonden' + (mijn ? ' voor ' + buLabels : '') + '.');
+      return;
+    }
+
     var wb = XLSX.utils.book_new();
-    var rows = leads.map(function(l){
+    var rows = bron.map(function(l){
       var li = (l.interacties && l.interacties.length) ? l.interacties[0] : null;
       return {
         'Nr': l.id,
@@ -7732,7 +7771,9 @@ function exportCrmExcel() {
     ws['!cols'] = Object.keys(rows[0]||{Nr:1}).map(function(h){ return {wch: Math.min(Math.max(h.length+2,12),50)}; });
     XLSX.utils.book_append_sheet(wb, ws, 'Interacties');
     var d = new Date().toISOString().slice(0,10);
-    XLSX.writeFile(wb, 'Heli_CRM_interacties_'+d+'.xlsx');
+    // Zet de BU in de bestandsnaam, zodat een manager meteen ziet wat erin zit.
+    var buDeel = mijn ? mijn.join('-').replace(/[^A-Za-z0-9\-]/g, '') + '_' : '';
+    XLSX.writeFile(wb, 'Heli_CRM_interacties_'+buDeel+d+'.xlsx');
   } catch(e) {
     alert('Export mislukt: ' + (e.message||e));
     console.error('exportCrmExcel:', e);
