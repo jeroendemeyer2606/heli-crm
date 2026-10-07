@@ -413,9 +413,11 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
         <option value="CS High&amp;Safe|HS|cs">CS High&amp;Safe</option>
         <option value="CS Sales|Sales|cs">CS Sales</option>
       </optgroup>
-      <optgroup label="Beheer">
+      <optgroup label="Beheer" id="loginBeheerGroup">
+        <!-- Wordt bij het laden vervangen door de lijst uit VASTE_BEHEERDERS -->
         <option value="__admin__|Admin|admin">🔐 Administrator</option>
-        <option value="__laurent__|Admin|admin">🔐 Laurent Dedoncker</option>
+        <option value="__davy__|Admin|admin">🔐 Davy Callewaert</option>
+        <option value="__it__|Admin|admin">🔐 it@heli.eu</option>
       </optgroup>
     </select>
     <label class="login-label">Wachtwoord</label>
@@ -459,7 +461,7 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
   </div>
 </div>
 
-<!-- VERPLICHTE WACHTWOORD-SETUP (Administrator/Laurent — eerste keer, geen wachtwoord in Supabase) -->
+<!-- VERPLICHTE WACHTWOORD-SETUP (vaste beheerders — eerste keer, geen wachtwoord in Supabase) -->
 <div id="forcedPwOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,26,20,0.92);z-index:10000;align-items:center;justify-content:center;flex-direction:column">
   <div style="background:#1A2B4A;border-radius:16px;padding:32px 36px;width:380px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,0.4)">
     <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:#fff;margin-bottom:6px">🔐 Wachtwoord instellen</div>
@@ -1060,7 +1062,7 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
     </div>
 
     <!-- SUPABASE CONFIGURATIE -->
-    <div style="background:var(--surface);border:2px solid #E87722;border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:24px;max-width:900px">
+    <div id="importSbConfig" style="background:var(--surface);border:2px solid #E87722;border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:24px;max-width:900px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
         <div>
           <div style="font-size:15px;font-weight:700;color:var(--ink)">&#9889; Database-verbinding (Supabase)</div>
@@ -1087,8 +1089,9 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
     </div>
 
     <!-- EXCEL IMPORT (eénmalig) -->
-    <div style="font-size:14px;font-weight:700;color:var(--ink);margin-bottom:4px;max-width:900px">&#128196; Eénmalige Excel-import</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;max-width:900px">Laad de Excel-bestanden van SharePoint — dit hoef je enkel te doen bij de eerste keer of bij nieuwe SAP-data.</div>
+    <div id="importTitel" style="font-size:14px;font-weight:700;color:var(--ink);margin-bottom:4px;max-width:900px">&#128196; Eénmalige Excel-import</div>
+    <div id="importIntro" style="font-size:12px;color:var(--muted);margin-bottom:16px;max-width:900px">Laad de Excel-bestanden van SharePoint — dit hoef je enkel te doen bij de eerste keer of bij nieuwe SAP-data.</div>
+    <div id="importBmUitleg" style="display:none;max-width:900px;background:#E6F4EF;border:1px solid #BFE3D6;border-left:3px solid #1F7A5A;border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;font-size:12px;color:#17543F"></div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:900px">
 
@@ -1182,11 +1185,11 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
     </div>
 
     <div style="margin-top:16px;max-width:900px;display:flex;gap:10px;align-items:center">
-      <button class="btn btn-primary" id="btnLoadAll2" onclick="loadAllFiles()" disabled>&#9654; Importeren &amp; opslaan in database</button>
+      <button class="btn btn-primary" id="btnLoadAll2" onclick="startImport()" disabled>&#9654; Importeren &amp; opslaan in database</button>
       <div id="load_global_status" style="font-size:12px;color:var(--muted)"></div>
     </div>
 
-    <div style="margin-top:16px;max-width:900px">
+    <div id="importLegeCrm" style="margin-top:16px;max-width:900px">
       <div style="background:var(--surface);border:2px dashed var(--border-mid);border-radius:var(--radius-lg);padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
         <div style="flex:1;min-width:200px">
           <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:3px">&#128196; Nog geen CRM-bestand?</div>
@@ -1197,7 +1200,7 @@ td.lead-nr:hover{color:#C96510}.td-bedrijf{cursor:pointer}
     </div>
 
     <!-- SUPABASE SETUP GIDS -->
-    <div style="margin-top:28px;max-width:900px">
+    <div id="importSetupGids" style="margin-top:28px;max-width:900px">
       <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:14px">&#128210; Supabase instellen (eénmalig)</div>
       <div style="display:flex;flex-direction:column;gap:10px">
 
@@ -1352,28 +1355,10 @@ CREATE TABLE IF NOT EXISTS sap_klanten (
           <div id="newUserErr" style="font-size:12px;color:var(--red);margin-top:8px;min-height:16px"></div>
         </div>
 
-        <!-- Admin wachtwoord -->
-        <div class="admin-panel" style="max-width:none">
-          <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:12px">&#128272; Administrator wachtwoord</div>
-          <input type="password" id="adminNewPw" class="admin-pw-input" placeholder="Nieuw wachtwoord" style="width:100%;margin-bottom:6px" oninput="checkPwStrength('adminNewPw','adminPwRules')"/>
-          <div id="adminPwRules" style="margin-bottom:10px"></div>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-primary btn-sm" onclick="saveAdminPw()">Opslaan</button>
-            <button class="btn btn-sm" onclick="reset2FAUser('Administrator')" style="color:var(--amber-dark);border-color:var(--amber-dark)">Reset 2FA</button>
-          </div>
-        </div>
-
-        <!-- Laurent wachtwoord -->
-        <div class="admin-panel" style="max-width:none">
-          <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px">&#128272; Laurent Dedoncker wachtwoord</div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Directeur — volledige beheertoegang</div>
-          <input type="password" id="laurentNewPw" class="admin-pw-input" placeholder="Nieuw wachtwoord" style="width:100%;margin-bottom:6px" oninput="checkPwStrength('laurentNewPw','laurentPwRules')"/>
-          <div id="laurentPwRules" style="margin-bottom:10px"></div>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-primary btn-sm" onclick="saveLaurentPw()">Opslaan</button>
-            <button class="btn btn-sm" onclick="reset2FAUser('Laurent Dedoncker')" style="color:var(--amber-dark);border-color:var(--amber-dark)">Reset 2FA</button>
-          </div>
-        </div>
+        <!-- Wachtwoorden van de vaste beheerdersaccounts.
+             Wordt opgebouwd uit VASTE_BEHEERDERS, dus een beheerder toevoegen
+             hoeft hier niet herhaald te worden. -->
+        <div id="beheerderPwPanels"></div>
       </div>
     </div>
   </div><!-- /view-admin -->
@@ -1855,7 +1840,36 @@ var editContactId = null;
 const LS_PASSWORDS  = 'helicrm_passwords_v1';
 const LS_USERS      = 'helicrm_users_v2';
 const ADMIN_PW_KEY  = 'helicrm_admin_pw_v1';
-const LAURENT_PW_KEY = 'helicrm_laurent_pw_v1';
+const DAVY_PW_KEY   = 'helicrm_davy_pw_v1';
+const IT_PW_KEY     = 'helicrm_it_pw_v1';
+
+// ── VASTE BEHEERDERSACCOUNTS ──────────────────────────────────────────────
+// Deze accounts staan in de code en werken ook wanneer de databank even
+// onbereikbaar is. Hun wachtwoord staat NIET in de code: dat wordt bij de
+// eerste aanmelding ingesteld en bewaard in Supabase (tabel user_passwords).
+//
+// Een beheerder toevoegen of wijzigen doe je enkel hier — de aanmeldlijst, het
+// aanmelden zelf en het wachtwoordbeheer in het beheerscherm lezen allemaal uit
+// deze lijst. Kies voor een nieuwe collega altijd een NIEUWE sleutel
+// (bv. '__davy__'), nooit die van een vertrekkende collega: zo vervallen diens
+// wachtwoord en 2FA meteen in plaats van mee over te gaan.
+const VASTE_BEHEERDERS = {
+  '__admin__': { naam: 'Administrator',   initialen: 'AD', pwKey: ADMIN_PW_KEY, omschrijving: 'Technisch beheer' },
+  '__davy__':  { naam: 'Davy Callewaert', initialen: 'DC', pwKey: DAVY_PW_KEY,  omschrijving: 'Directeur — volledige beheertoegang' },
+  '__it__':    { naam: 'it@heli.eu',      initialen: 'IT', pwKey: IT_PW_KEY,    omschrijving: 'IT-beheeraccount' }
+};
+
+function isVasteBeheerder(naam) {
+  return Object.prototype.hasOwnProperty.call(VASTE_BEHEERDERS, naam);
+}
+
+// Bouwt de keuzemogelijkheden voor de groep "Beheer" in de aanmeldlijst.
+function vasteBeheerderOptiesHtml() {
+  return Object.keys(VASTE_BEHEERDERS).map(function(sleutel) {
+    return '<option value="' + sleutel + '|Admin|admin">🔐 '
+      + VASTE_BEHEERDERS[sleutel].naam + '</option>';
+  }).join('');
+}
 
 // ── Verplichte wachtwoord-registratie voor ALLE gebruikers ─────────────────
 // Er staat GEEN vast wachtwoord meer in de broncode. Heeft een account nog
@@ -2131,7 +2145,7 @@ function rebuildUserDropdowns(selectedName) {
   if (loginSel) {
     const curVal = loginSel.value; // bewaar huidige selectie
     loginSel.innerHTML = buildUserOptionsHtml(users, true)
-      + '<optgroup label="Beheer"><option value="__admin__|Admin|admin">\uD83D\uDD10 Administrator</option><option value="__laurent__|Admin|admin">\uD83D\uDD10 Laurent Dedoncker</option></optgroup>';
+      + '<optgroup label="Beheer">' + vasteBeheerderOptiesHtml() + '</optgroup>';
     // Herstel selectie indien mogelijk
     if (curVal) {
       for (var li=0; li<loginSel.options.length; li++) {
@@ -2169,13 +2183,13 @@ async function doLogin() {
   if (!val) { err.textContent = 'Kies eerst een gebruiker.'; return; }
   var name = val.split('|')[0];
 
-  if (name === '__admin__' || name === '__laurent__') {
-    var pwKey = name === '__laurent__' ? LAURENT_PW_KEY : ADMIN_PW_KEY;
-    var displayName = name === '__laurent__' ? 'Laurent Dedoncker' : 'Administrator';
+  if (isVasteBeheerder(name)) {
+    var pwKey = VASTE_BEHEERDERS[name].pwKey;
+    var displayName = VASTE_BEHEERDERS[name].naam;
     // Controleer eerst Supabase cache, dan localStorage
-    var cacheKey = name === '__admin__' ? '__admin__' : '__laurent__';
+    var cacheKey = name;
     // Probeer in volgorde: in-memory cache, LS_PASSWORDS (centrale wachtwoordcache),
-    // en pas dan de aparte admin/laurent-key (die niet altijd gevuld is).
+    // en pas dan de aparte sleutel van dit beheerdersaccount (niet altijd gevuld).
     var adminHash = _sbPwCache[cacheKey]
                     || loadPasswords()[cacheKey]
                     || localStorage.getItem(pwKey)
@@ -2258,9 +2272,10 @@ function doLoginSuccess(val, isAdmin) {
   const adminNav = document.getElementById('nav-admin');
 
   if (isAdmin) {
-    const isLaurent = val === '__laurent__|Admin|admin';
-    const adminName = isLaurent ? 'Laurent Dedoncker' : 'Administrator';
-    const adminInitials = isLaurent ? 'LD' : 'AD';
+    const beheerSleutel = val.split('|')[0];
+    const beheerder = VASTE_BEHEERDERS[beheerSleutel] || VASTE_BEHEERDERS['__admin__'];
+    const adminName = beheerder.naam;
+    const adminInitials = beheerder.initialen;
     currentUser = {name: adminName, bu: 'Admin', role: 'admin'};
     document.getElementById('topUserName').textContent = adminName;
     document.getElementById('topUserBu').textContent = 'Beheer';
@@ -2307,12 +2322,13 @@ function onLoginUserChange() {
   const hint = document.getElementById('loginHint');
   if (!hint) return;
   const name = sel.value.split('|')[0];
-  if (name === '__admin__' || name === '__laurent__') { hint.textContent = ''; return; }
+  if (isVasteBeheerder(name)) { hint.textContent = ''; return; }
   const pw = getUserPw(name);
   hint.textContent = pw === null ? 'Geen wachtwoord ingesteld \u2014 laat het veld leeg om in te loggen.' : '';
 }
 
 function renderAdminPanel() {
+  try { renderBeheerderPwPanels(); } catch(e) { console.warn('renderBeheerderPwPanels:', e); }
   const users = getUsers();
   const pws   = loadPasswords();
   const container = document.getElementById('adminUserList');
@@ -2673,20 +2689,48 @@ function deleteUser(idx) {
   renderAdminPanel();
 }
 
-function saveAdminPw() {
-  var inp = document.getElementById('adminNewPw');
+// Bouwt in het beheerscherm één blokje per vast beheerdersaccount, met een
+// wachtwoordveld en een knop om de 2FA te resetten.
+function renderBeheerderPwPanels() {
+  var wrap = document.getElementById('beheerderPwPanels');
+  if (!wrap) return;
+  wrap.innerHTML = Object.keys(VASTE_BEHEERDERS).map(function(sleutel) {
+    var b = VASTE_BEHEERDERS[sleutel];
+    var veldId = 'pw_' + sleutel.replace(/_/g, '');
+    var regelsId = veldId + '_regels';
+    return '<div class="admin-panel" style="max-width:none">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px">&#128272; ' + esc(b.naam) + ' wachtwoord</div>'
+      + (b.omschrijving ? '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">' + esc(b.omschrijving) + '</div>' : '')
+      + '<input type="password" id="' + veldId + '" class="admin-pw-input" placeholder="Nieuw wachtwoord" style="width:100%;margin-bottom:6px" oninput="checkPwStrength(\'' + veldId + '\',\'' + regelsId + '\')"/>'
+      + '<div id="' + regelsId + '" style="margin-bottom:10px"></div>'
+      + '<div style="display:flex;gap:8px">'
+      +   '<button class="btn btn-primary btn-sm" onclick="saveBeheerderPw(\'' + sleutel + '\')">Opslaan</button>'
+      +   '<button class="btn btn-sm" onclick="reset2FAUser(' + JSON.stringify(b.naam) + ')" style="color:var(--amber-dark);border-color:var(--amber-dark)">Reset 2FA</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+// Bewaart het wachtwoord van één vast beheerdersaccount.
+function saveBeheerderPw(sleutel) {
+  var b = VASTE_BEHEERDERS[sleutel];
+  if (!b) return;
+  var veldId = 'pw_' + sleutel.replace(/_/g, '');
+  var inp = document.getElementById(veldId);
+  if (!inp) return;
   var pw = inp.value.trim();
   if (!pw) { alert('Vul een wachtwoord in.'); return; }
   var errors = getPwErrors(pw);
   if (errors.length > 0) { alert('Wachtwoord voldoet niet:\n• ' + errors.join('\n• ')); return; }
   sha256(pw).then(function(hash) {
-    localStorage.setItem(ADMIN_PW_KEY, hash);
-    sbSavePassword('__admin__', hash);
+    localStorage.setItem(b.pwKey, hash);
+    sbSavePassword(sleutel, hash);
     inp.value = '';
-    document.getElementById('adminPwRules').innerHTML = '';
+    var regels = document.getElementById(veldId + '_regels');
+    if (regels) regels.innerHTML = '';
     inp.style.borderColor = 'var(--teal)';
     setTimeout(function(){ inp.style.borderColor = ''; }, 1400);
-    alert('Administrator wachtwoord opgeslagen.');
+    alert(b.naam + ' wachtwoord opgeslagen.');
   });
 }
 
@@ -2875,22 +2919,6 @@ async function saveForcedPw() {
   }
 }
 
-function saveLaurentPw() {
-  var inp = document.getElementById('laurentNewPw');
-  var pw = inp.value.trim();
-  if (!pw) { alert('Vul een wachtwoord in.'); return; }
-  var errors = getPwErrors(pw);
-  if (errors.length > 0) { alert('Wachtwoord voldoet niet:\n• ' + errors.join('\n• ')); return; }
-  sha256(pw).then(function(hash) {
-    localStorage.setItem(LAURENT_PW_KEY, hash);
-    sbSavePassword('__laurent__', hash);
-    inp.value = '';
-    document.getElementById('laurentPwRules').innerHTML = '';
-    inp.style.borderColor = 'var(--teal)';
-    setTimeout(function(){ inp.style.borderColor = ''; }, 1400);
-    alert('Laurent Dedoncker wachtwoord opgeslagen.');
-  });
-}
 
 let currentUser = {name:'', bu:'', role:'am'};
 let selectedType = null;
@@ -3415,7 +3443,7 @@ function navTo(view) {
   const ni = document.getElementById('nav-'+view);
   if (ni) ni.classList.add('active');
   if (view === 'notifs') markAllRead();
-  if (view === 'import') updateLoadButton();
+  if (view === 'import') { pasImportSchermAanRol(); updateLoadButton(); }
   if (view === 'badges') renderBadges();
   if (view === 'feedback') { sbLoadFeedback().then(renderFeedback); }
   if (view === 'contacten') renderContacten();
@@ -3434,6 +3462,21 @@ function navBack() { navTo(prevView); }
 function updateRapportNav() {
   var n = document.getElementById('nav-rapport');
   if (n) n.style.display = (currentUser.role === 'bm' || isAdminUser()) ? 'flex' : 'none';
+  updateImportNav();
+}
+
+// "Bestanden laden" staat in het menu voor beheerders en voor BU-managers.
+// Een BU-manager ziet daar enkel het omzetbestand van de eigen BU.
+function updateImportNav() {
+  var n = document.getElementById('nav-import');
+  if (!n) return;
+  var mag = false;
+  try { mag = magImporteren(); } catch(e) { mag = false; }
+  n.style.display = mag ? 'flex' : 'none';
+  if (mag) {
+    var label = isAdminUser() ? 'Bestanden laden' : 'Omzet bijwerken';
+    n.innerHTML = '<span class="nav-icon">&#128229;</span>' + label;
+  }
 }
 
 // ── USER ──────────────────────────────────────────────────────────────────
@@ -6169,11 +6212,11 @@ const LS_SB_CFG = 'helicrm_sb_cfg_v1';
 // ╔════════════════════════════════════════════════════════════════════════╗
 // ║  🛠️  DEV-MODUS: login overslaan                                          ║
 // ║  Tijdens ontwikkeling: zet DEV_BYPASS_LOGIN op true om bij elke refresh ║
-// ║  automatisch als Laurent (admin) ingelogd te zijn.                      ║
+// ║  automatisch als Administrator ingelogd te zijn.                       ║
 // ║  Vóór productie-release: zet terug op false!                            ║
 // ╚════════════════════════════════════════════════════════════════════════╝
 const DEV_BYPASS_LOGIN = false;
-const DEV_BYPASS_USER  = '__laurent__|Admin|admin';
+const DEV_BYPASS_USER  = '__admin__|Admin|admin';
 
 function loadSbConfig() {
   var defaults = {
@@ -7005,6 +7048,211 @@ function updateLoadButton() {
   });
 }
 
+// ══ IMPORT: WIE MAG WAT? ═══════════════════════════════════════════════════
+// Beheerders zien het volledige importscherm en vervangen alle cijfers in één
+// keer. Een BU-manager ziet enkel het omzetbestand van de eigen BU('s) en werkt
+// daarmee uitsluitend die cijfers bij — de andere BU's blijven ongemoeid.
+var OMZET_DEFS = [
+  {key:'rental', bu:'Rental', fn:parseOmzetSimple, bestand:'Omzet_Heli_Verhuur.xlsx'},
+  {key:'sales',  bu:'Sales',  fn:parseOmzetFull,   bestand:'Omzet_Heli_Sales.xlsx'},
+  {key:'safety', bu:'Safety', fn:parseOmzetFull,   bestand:'Omzet_Heli_Safety_Academy.xlsx'},
+  {key:'hs',     bu:'HS',     fn:parseOmzetSimple, bestand:'Omzet_Heli_High_Safe.xlsx'}
+];
+function omzetDefVoorBu(bu) {
+  return OMZET_DEFS.find(function(d){ return d.bu === bu; }) || null;
+}
+
+// Welke BU's mag de ingelogde gebruiker bijwerken?
+function mijnImportBus() {
+  if (isAdminUser()) return OMZET_DEFS.map(function(d){ return d.bu; });
+  if (currentUser && currentUser.role === 'bm') {
+    return managerBUs().filter(function(b){ return !!omzetDefVoorBu(b); });
+  }
+  return [];
+}
+function magImporteren() { return isAdminUser() || mijnImportBus().length > 0; }
+
+// Past het importscherm aan op wie er kijkt.
+function pasImportSchermAanRol() {
+  var adm = isAdminUser();
+  var mijn = mijnImportBus();
+
+  // Onderdelen die enkel een beheerder nodig heeft
+  ['importSbConfig','importLegeCrm','importSetupGids','card_crm','card_combined'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = adm ? '' : 'none';
+  });
+
+  // Omzetkaarten: enkel de eigen BU('s) tonen
+  OMZET_DEFS.forEach(function(d) {
+    var el = document.getElementById('card_' + d.key);
+    if (el) el.style.display = (adm || mijn.indexOf(d.bu) >= 0) ? '' : 'none';
+  });
+
+  var paginaTitel = document.querySelector('#view-import .page-title');
+  var paginaSub   = document.querySelector('#view-import .page-sub');
+  var titel  = document.getElementById('importTitel');
+  var intro  = document.getElementById('importIntro');
+  var uitleg = document.getElementById('importBmUitleg');
+  var btn    = document.getElementById('btnLoadAll2');
+
+  if (adm) {
+    if (paginaTitel) paginaTitel.innerHTML = '&#128229; Data &amp; Instellingen';
+    if (paginaSub)   paginaSub.textContent = 'Eénmalig Excel importeren — daarna beheert de CRM alles zelf';
+    if (titel) titel.innerHTML = '&#128196; Volledige Excel-import';
+    if (intro) intro.style.display = '';
+    if (uitleg) uitleg.style.display = 'none';
+    if (btn) btn.innerHTML = '&#9654; Importeren &amp; opslaan in database';
+    return;
+  }
+
+  var labels = mijn.map(function(b){ return BU_LABELS_FULL[b] || b; }).join(' en ');
+  var bestanden = mijn.map(function(b){ var d = omzetDefVoorBu(b); return d ? d.bestand : b; }).join(' en ');
+  if (paginaTitel) paginaTitel.innerHTML = '&#128229; Omzetcijfers bijwerken';
+  if (paginaSub)   paginaSub.textContent = 'Laad de SAP-export van ' + (labels || 'je business unit');
+  if (titel) titel.innerHTML = '&#128200; Omzet ' + esc(labels);
+  if (intro) intro.style.display = 'none';
+  if (uitleg) {
+    uitleg.style.display = '';
+    uitleg.innerHTML = '<strong>Wat gebeurt er?</strong> Enkel de omzetcijfers van '
+      + esc(labels) + ' worden vervangen door wat in je bestand staat. '
+      + 'De cijfers van de andere business units blijven onaangeroerd.<br>'
+      + 'Sleep hieronder ' + esc(bestanden) + ' uit SharePoint en klik op de knop. '
+      + 'Je mag dit zo vaak doen als je wil — elke keer worden de vorige cijfers van jouw BU vervangen, niet opgeteld.<br>'
+      + '<span style="color:#3C6B57">Facturen en orders worden niet door deze upload aangepast; die komen uit de volledige import door de beheerder.</span>';
+  }
+  if (btn) btn.innerHTML = '&#9654; Mijn omzetcijfers bijwerken';
+}
+
+// De importknop kiest zelf de juiste actie op basis van de rol.
+function startImport() {
+  if (isAdminUser()) { loadAllFiles(); return; }
+  loadBuOmzet();
+}
+
+// Werkt de omzet van één BU bij zonder de andere BU's aan te raken.
+// Per klant staat de bijdrage van elke BU apart in omzBU; we trekken de oude
+// bijdrage van deze BU af en tellen de nieuwe erbij op. Zo blijft het totaal
+// kloppen, ook al zien we de cijfers van de andere BU's niet in dit bestand.
+function importeerBuOmzet(bu, items) {
+  // Opzoeklijst op SAP-nummer én op naam, net zoals mergeOmzet matcht.
+  var opNr = {}, opNaam = {};
+  items.forEach(function(k) {
+    if (k.nr) opNr[k.nr] = k;
+    if (k.naam) opNaam[k.naam.toLowerCase()] = k;
+  });
+  var gebruikt = [];
+  function zoekNieuw(k) {
+    return (k.nr && opNr[k.nr]) || (k.naam && opNaam[(k.naam||'').toLowerCase()]) || null;
+  }
+
+  var bijgewerkt = 0, opNul = 0, toegevoegd = 0;
+
+  sapKlanten.forEach(function(k) {
+    if (k._eigen) return;                       // zelf toegevoegde klanten komen niet uit SAP
+    var n = zoekNieuw(k);
+    var oudeBijdrage = (k.omzBU && k.omzBU[bu] && k.omzBU[bu].omz26) || 0;
+    var nieuweBijdrage = n ? (n.omz26 || 0) : 0;
+    if (!n && !oudeBijdrage) return;            // heeft niets met deze BU te maken
+
+    if (n && gebruikt.indexOf(n) < 0) gebruikt.push(n);
+    k.omz26 = (k.omz26 || 0) - oudeBijdrage + nieuweBijdrage;
+    k.omzBU = k.omzBU || {};
+    k.omzBU[bu] = k.omzBU[bu] || {omz26: 0, omz25: 0};
+    k.omzBU[bu].omz26 = nieuweBijdrage;
+
+    if (nieuweBijdrage) {
+      if (!Array.isArray(k.bus)) k.bus = [];
+      if (k.bus.indexOf(bu) < 0) k.bus.push(bu);
+      bijgewerkt++;
+    } else {
+      opNul++;                                  // stond vorige keer wel in deze BU, nu niet meer
+    }
+  });
+
+  // Klanten uit het bestand die nog niet in de lijst stonden
+  items.forEach(function(n) {
+    if (gebruikt.indexOf(n) >= 0) return;
+    if (!n.omz26) return;
+    var slice = {}; slice[bu] = {omz26: n.omz26 || 0, omz25: 0};
+    sapKlanten.push({
+      nr: n.nr || '', naam: n.naam || '', bus: [bu],
+      omz26: n.omz26 || 0, omz25: 0,
+      fac: n.fac || 0, ord: n.ord || 0,
+      omzBU: slice
+    });
+    toegevoegd++;
+  });
+
+  _sapNameCache = {};
+  return {bijgewerkt: bijgewerkt, opNul: opNul, toegevoegd: toegevoegd};
+}
+
+// Importknop voor een BU-manager.
+async function loadBuOmzet() {
+  var statusEl = document.getElementById('load_global_status');
+  function status(tekst, kleur) {
+    if (statusEl) { statusEl.textContent = tekst; statusEl.style.color = kleur || 'var(--muted)'; }
+  }
+  var mijn = mijnImportBus();
+  var teDoen = mijn.filter(function(bu){ var d = omzetDefVoorBu(bu); return d && _loadedFiles[d.key]; });
+  if (!teDoen.length) { status('Kies eerst je omzetbestand hierboven.', 'var(--red)'); return; }
+
+  // Eerst de actuele cijfers ophalen. Zonder dit zouden we kunnen vertrekken
+  // van een kopie van maximaal 24 uur oud en bij het opslaan de andere BU's
+  // terugzetten naar hun oude waarden.
+  status('⏳ Actuele cijfers ophalen...');
+  try {
+    await sbLoadSapKlanten(true);
+    if (typeof sbLoadEigenKlanten === 'function') await sbLoadEigenKlanten();
+  } catch(e) {
+    status('✗ Kon de actuele cijfers niet ophalen — probeer later opnieuw.', 'var(--red)');
+    return;
+  }
+
+  var samenvatting = [];
+  for (var i = 0; i < teDoen.length; i++) {
+    var bu = teDoen[i];
+    var def = omzetDefVoorBu(bu);
+    status('⏳ ' + (BU_LABELS_FULL[bu] || bu) + ' verwerken...');
+    try {
+      var wb = XLSX.read(new Uint8Array(_loadedFiles[def.key]), {type:'array', cellDates:true});
+      var items = def.fn(wb, bu);
+      var res = importeerBuOmzet(bu, items);
+      setFileStatus(def.key, true, res.bijgewerkt + ' klanten bijgewerkt');
+      samenvatting.push((BU_LABELS_FULL[bu] || bu) + ': ' + res.bijgewerkt + ' bijgewerkt'
+        + (res.toegevoegd ? ', ' + res.toegevoegd + ' nieuw' : '')
+        + (res.opNul ? ', ' + res.opNul + ' zonder omzet' : ''));
+    } catch(e) {
+      setFileStatus(def.key, false, e.message);
+      status('✗ Fout bij het inlezen: ' + e.message, 'var(--red)');
+      return;
+    }
+  }
+
+  status('⏳ Opslaan in de database...');
+  try {
+    await sbSaveSapKlanten();
+  } catch(e) {
+    status('✗ Opslaan mislukt: ' + (e.message || e), 'var(--red)');
+    return;
+  }
+  // Cache wissen zodat iedereen bij de volgende keer verse cijfers ziet
+  try {
+    localStorage.removeItem('helicrm_sap_cache_v1');
+    localStorage.removeItem('helicrm_sap_cache_ts_v1');
+    localStorage.removeItem('helicrm_sap_cache_v1_v2');
+    localStorage.removeItem('helicrm_sap_cache_ts_v1_v2');
+    localStorage.setItem('helicrm_omzetperiode_v1', JSON.stringify(omzetPeriode));
+  } catch(e) {}
+
+  if (typeof mergeEigenKlanten === 'function') mergeEigenKlanten();
+  renderCurrentView(); renderKlanten();
+  status('✓ ' + samenvatting.join(' · '), 'var(--teal-mid)');
+  _loadedFiles = {};
+  ['btnLoadAll','btnLoadAll2'].forEach(function(id){ var b = document.getElementById(id); if (b) b.disabled = true; });
+}
+
 function loadAllFiles() {
   var statusEl = document.getElementById('load_global_status');
   if (statusEl) { statusEl.textContent = '⏳ Bezig...'; statusEl.style.color='var(--muted)'; }
@@ -7028,12 +7276,7 @@ function loadAllFiles() {
     } catch(e) { setFileStatus('crm', false, e.message); }
   }
 
-  var omzetDefs = [
-    {key:'rental', bu:'Rental', fn:parseOmzetSimple},
-    {key:'sales',  bu:'Sales',  fn:parseOmzetFull},
-    {key:'safety', bu:'Safety', fn:parseOmzetFull},
-    {key:'hs',     bu:'HS',     fn:parseOmzetSimple},
-  ];
+  var omzetDefs = OMZET_DEFS;
   // Reset vóór import — sla omz25 op want 2025 is bevroren
   var anyOmzetFile = _loadedFiles['combined'] || omzetDefs.some(function(def){ return !!_loadedFiles[def.key]; });
   if (anyOmzetFile) {
@@ -9478,8 +9721,10 @@ async function submitFeedback() {
     updateFeedbackBadge();
     renderFeedback();
     showSpSaveIndicator('ok', '✓ Feedback ingediend!');
-    // E-mail naar admins (Laurent en Administrator)
-    var adminEmail = getUserEmail('Laurent Dedoncker') || getUserEmail('Administrator');
+    // E-mail naar de beheerders — eerste adres dat gekend is in Gebruikersbeheer
+    var adminEmail = getUserEmail('Davy Callewaert')
+                  || getUserEmail('it@heli.eu')
+                  || getUserEmail('Administrator');
     if (adminEmail) {
       mailFeedbackNieuw(adminEmail, item.ingediend_door, item.titel, item.type, item.prio);
     }
