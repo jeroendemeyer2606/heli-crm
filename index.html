@@ -7172,12 +7172,17 @@ function importeerBuOmzet(bu, items) {
   });
 
   // Klanten uit het bestand die nog niet in de lijst stonden
+  var zonderNr = 0;
   items.forEach(function(n) {
     if (gebruikt.indexOf(n) >= 0) return;
     if (!n.omz26) return;
+    // Het SAP-nummer is de sleutel in de database. Een nieuwe klant zonder
+    // nummer kan niet bewaard worden — twee zulke regels zouden bovendien
+    // dezelfde (lege) sleutel krijgen en de hele opslag doen mislukken.
+    if (!String(n.nr || '').trim()) { zonderNr++; return; }
     var slice = {}; slice[bu] = {omz26: n.omz26 || 0, omz25: 0};
     sapKlanten.push({
-      nr: n.nr || '', naam: n.naam || '', bus: [bu],
+      nr: String(n.nr).trim(), naam: n.naam || '', bus: [bu],
       omz26: n.omz26 || 0, omz25: 0,
       fac: n.fac || 0, ord: n.ord || 0,
       omzBU: slice
@@ -7186,7 +7191,7 @@ function importeerBuOmzet(bu, items) {
   });
 
   _sapNameCache = {};
-  return {bijgewerkt: bijgewerkt, opNul: opNul, toegevoegd: toegevoegd};
+  return {bijgewerkt: bijgewerkt, opNul: opNul, toegevoegd: toegevoegd, zonderNr: zonderNr};
 }
 
 // Importknop voor een BU-manager.
@@ -7223,7 +7228,8 @@ async function loadBuOmzet() {
       setFileStatus(def.key, true, res.bijgewerkt + ' klanten bijgewerkt');
       samenvatting.push((BU_LABELS_FULL[bu] || bu) + ': ' + res.bijgewerkt + ' bijgewerkt'
         + (res.toegevoegd ? ', ' + res.toegevoegd + ' nieuw' : '')
-        + (res.opNul ? ', ' + res.opNul + ' zonder omzet' : ''));
+        + (res.opNul ? ', ' + res.opNul + ' zonder omzet' : '')
+        + (res.zonderNr ? ', ' + res.zonderNr + ' overgeslagen (geen klantnummer)' : ''));
     } catch(e) {
       setFileStatus(def.key, false, e.message);
       status('✗ Fout bij het inlezen: ' + e.message, 'var(--red)');
@@ -7232,10 +7238,14 @@ async function loadBuOmzet() {
   }
 
   status('⏳ Opslaan in de database...');
-  try {
-    await sbSaveSapKlanten();
-  } catch(e) {
-    status('✗ Opslaan mislukt: ' + (e.message || e), 'var(--red)');
+  var bewaard = await sbSaveSapKlanten();
+  if (!bewaard || !bewaard.ok) {
+    // Niet stilzwijgend verdergaan: anders denkt de gebruiker dat het gelukt is.
+    status('✗ Opslaan mislukt — je cijfers zijn NIET bewaard. '
+      + ((bewaard && bewaard.fout) ? bewaard.fout : 'Onbekende fout, kijk in de console (F12).'), 'var(--red)');
+    alert('Opslaan in de database is mislukt.\n\n'
+      + ((bewaard && bewaard.fout) ? bewaard.fout : 'Onbekende fout.')
+      + '\n\nJe cijfers zijn NIET bewaard. Probeer opnieuw of verwittig IT.');
     return;
   }
   // Cache wissen zodat iedereen bij de volgende keer verse cijfers ziet
@@ -7324,7 +7334,18 @@ function loadAllFiles() {
 
   if (loaded > 0) {
     sbSaveLead_all().then(function(){
-      sbSaveSapKlanten().then(function(){
+      sbSaveSapKlanten().then(function(bewaard){
+        if (bewaard && !bewaard.ok) {
+          // Fout tonen in plaats van verzwijgen — anders lijkt een mislukte
+          // import op een geslaagde.
+          if (statusEl) {
+            statusEl.textContent = '✗ Klanten opslaan mislukt: ' + (bewaard.fout || 'onbekende fout');
+            statusEl.style.color = 'var(--red)';
+          }
+          alert('De klantgegevens konden niet bewaard worden.\n\n' + (bewaard.fout || 'Onbekende fout.')
+            + '\n\nControleer de verbinding en probeer opnieuw.');
+          return;
+        }
         // Wis SAP cache na import zodat verse data geladen wordt
         localStorage.removeItem('helicrm_sap_cache_v1');
         localStorage.removeItem('helicrm_sap_cache_ts_v1');
@@ -7433,41 +7454,89 @@ async function sbLoadContacten(forceRefresh) {
   } catch(e) { console.warn('sbLoadContacten:', e); return false; }
 }
 
+// Schrijft de klantenlijst weg naar Supabase.
+//
+// Retourneert altijd een object { ok, aantal, overgeslagen, fout } — deze functie
+// gooit nooit een fout, maar verzwijgt er ook geen. De aanroeper MOET .ok
+// controleren en de gebruiker tonen wat er misging. Vroeger eindigde dit op
+// `catch(e){ console.warn(e); }`, waardoor een mislukte opslag er voor de
+// gebruiker uitzag als een geslaagde.
+//
+// Volgorde is bewust eerst schrijven, dan pas opruimen. Vroeger werd de tabel
+// als eerste volledig leeggemaakt; mislukte daarna het wegschrijven, dan bleef
+// sap_klanten leeg achter.
 async function sbSaveSapKlanten() {
   var db = getSbClient();
-  if (!db || !sapKlanten.length) return;
+  if (!db) return {ok:false, fout:'Geen verbinding met de database.'};
+
+  // Enkel de kolommen die echt in de tabel sap_klanten bestaan. Een whitelist,
+  // want klanten die uit bedrijven_v2 geladen zijn dragen extra velden mee
+  // (bedrijfId, stad, ...) die de database niet kent en de hele opslag doen falen.
+  var KOLOMMEN = ['nr','naam','bus','omz26','omz25','fac','ord'];
+  var rows = [];
+  var gezien = {};
+  var zonderNr = 0, dubbel = 0;
+
+  // BELANGRIJK: eigen (handmatig aangemaakte) klanten horen hier NIET bij.
+  // Die staan in hun eigen tabel 'eigen_klanten'.
+  sapKlanten.filter(function(k){ return !k._eigen; }).forEach(function(k) {
+    var nr = (k.nr === 0 || k.nr) ? String(k.nr).trim() : '';
+    if (!nr) { zonderNr++; return; }          // nr is de primaire sleutel — zonder nummer kan het niet
+    var r = {};
+    KOLOMMEN.forEach(function(c){ r[c] = k[c]; });
+    r.nr = nr;
+    r.naam = r.naam || '';
+    if (typeof r.bus !== 'string') r.bus = JSON.stringify(r.bus || []);
+    ['omz26','omz25','fac','ord'].forEach(function(c){ r[c] = r[c] || 0; });
+    if (OMZBU_COLUMN_READY) r.omzbu = JSON.stringify(k.omzBU || {});
+    // Dubbele nummers laten de upsert struikelen ("cannot affect row a second
+    // time"), dus houden we per nummer enkel de laatste versie over.
+    if (gezien[nr] !== undefined) { rows[gezien[nr]] = r; dubbel++; return; }
+    gezien[nr] = rows.length;
+    rows.push(r);
+  });
+
+  if (!rows.length) return {ok:false, fout:'Geen klanten om op te slaan.', overgeslagen:zonderNr};
+
   try {
-    // Eerst alles wissen zodat oude/ongeldige records niet blijven staan
-    await db.from('sap_klanten').delete().neq('nr', '___NOEXIST___');
-    // BELANGRIJK: eigen (handmatig aangemaakte) klanten horen hier NIET bij.
-    // Ze staan in hun eigen tabel 'eigen_klanten' en zouden bij de volgende
-    // import mee gewist worden als we ze hier zouden wegschrijven.
-    var rows = sapKlanten.filter(function(k){ return !k._eigen; }).map(function(k) {
-      var r = Object.assign({}, k);
-      // Velden die enkel in de app bestaan en niet in de tabel sap_klanten.
-      ['_eigen','btw','tel','email','notitie','aangemaaktDoor','aangemaaktOp'].forEach(function(f){ delete r[f]; });
-      if (typeof r.bus !== 'string') r.bus = JSON.stringify(r.bus || []);
-      if (OMZBU_COLUMN_READY) { r.omzbu = JSON.stringify(r.omzBU || {}); }
-      delete r.omzBU;
-      return r;
-    });
-    // Insert in batches van 500
-    for (var i=0; i<rows.length; i+=500) {
-      var batch = rows.slice(i, i+500);
+    // ── 1. Wegschrijven in blokken van 500 ──────────────────────────────
+    for (var i = 0; i < rows.length; i += 500) {
+      var batch = rows.slice(i, i + 500);
       var res = await db.from('sap_klanten').upsert(batch, {onConflict: 'nr'});
       if (res.error) {
         // Kolom 'omzbu' bestaat nog niet? → strip en probeer opnieuw zonder.
         if (OMZBU_COLUMN_READY && /omzbu/i.test(res.error.message || '')) {
           OMZBU_COLUMN_READY = false;
           rows.forEach(function(rr){ delete rr.omzbu; });
-          batch = rows.slice(i, i+500);
+          batch = rows.slice(i, i + 500);
           res = await db.from('sap_klanten').upsert(batch, {onConflict: 'nr'});
         }
         if (res.error) throw res.error;
       }
     }
+
+    // ── 2. Pas daarna opruimen wat niet meer voorkomt ───────────────────
+    var bestaande = [], from = 0;
+    while (true) {
+      var lees = await db.from('sap_klanten').select('nr').range(from, from + 999);
+      if (lees.error) throw lees.error;
+      if (!lees.data || !lees.data.length) break;
+      bestaande = bestaande.concat(lees.data.map(function(x){ return x.nr; }));
+      if (lees.data.length < 1000) break;
+      from += 1000;
+    }
+    var teVeel = bestaande.filter(function(nr){ return gezien[nr] === undefined; });
+    for (var j = 0; j < teVeel.length; j += 200) {
+      var weg = await db.from('sap_klanten').delete().in('nr', teVeel.slice(j, j + 200));
+      if (weg.error) throw weg.error;
+    }
+
     setFileStatus('rental', true, 'Opgeslagen in database');
-  } catch(e) { console.warn('sbSaveSapKlanten:', e); }
+    return {ok:true, aantal:rows.length, verwijderd:teVeel.length, overgeslagen:zonderNr, dubbel:dubbel};
+  } catch(e) {
+    console.warn('sbSaveSapKlanten:', e);
+    return {ok:false, fout:(e && e.message) ? e.message : String(e), overgeslagen:zonderNr};
+  }
 }
 
 function setFileStatus(key, ok, msg) {
@@ -7719,6 +7788,57 @@ function updateExportBtn() {
   }
 }
 
+// ── Hulpjes voor de export in CRM.xlsx-formaat ────────────────────────────
+// Het interactietype omgekeerd vertalen naar de termen uit het Forms-bestand.
+// Deze vier waarden leest parseCrmExcel() weer correct in; andere types komen
+// er leesbaar in te staan maar vallen bij een herimport terug op "bezoek".
+var _CRM_TYPE_UIT = {
+  'bezoek-kantoor': 'VISITED',
+  'bezoek-werf':    'SITE VISIT',
+  'teams':          'TEAMS',
+  'telefoon':       'CALL'
+};
+function _crmType(i) {
+  if (!i || !i.type) return 'VISITED';
+  return _CRM_TYPE_UIT[i.type] || (TYPE_LABELS[i.type] || i.type).toUpperCase();
+}
+
+// 'HELI-2026-0042' → 42. Het Forms-bestand had een gewoon volgnummer.
+function _crmIdNummer(id) {
+  var s = String(id || '');
+  var m = s.match(/(\d+)\s*$/);
+  if (m) return parseInt(m[1], 10);
+  var cijfers = s.replace(/[^0-9]/g, '');
+  return cijfers ? parseInt(cijfers, 10) : '';
+}
+
+// Sorteersleutel: 'JJJJ-MM-DD UU:MM'
+function _crmStempel(i) {
+  if (!i) return '';
+  return (i.datum || '') + ' ' + (i.tijd || '');
+}
+
+// Leesbare tijdstempel 'DD/MM/JJJJ UU:MM' zoals Forms die toonde.
+function _crmDatumTijd(i, l) {
+  var d = (i && i.datum) || (l && l.datum) || '';
+  if (!d) return '';
+  var dl = String(d).split('-');
+  if (dl.length !== 3) return String(d);
+  var tijd = (i && i.tijd) ? ' ' + i.tijd : '';
+  return dl[2] + '/' + dl[1] + '/' + dl[0] + tijd;
+}
+
+// Echte datumwaarde, zodat Excel er een datum van maakt in plaats van tekst.
+function _crmDatum(iso) {
+  if (!iso) return '';
+  var s = String(iso).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  // Bewust 12:00 UTC: zo valt de datum in geen enkele tijdzone een dag terug
+  // wanneer Excel de waarde omrekent.
+  var d = new Date(s + 'T12:00:00Z');
+  return isNaN(d.getTime()) ? '' : d;
+}
+
 function exportCrmExcel() {
   try {
     var mijn = mijnExportBus();
@@ -7732,43 +7852,49 @@ function exportCrmExcel() {
       return;
     }
 
+    // E\u00e9n rij per interactie, in hetzelfde kolomformaat als CRM.xlsx (de
+    // Microsoft Forms-export waarmee de historische bezoeken ooit zijn
+    // ingelezen). Zo blijft het bestand bruikbaar voor rapporten die op die
+    // kolomnamen gebouwd zijn, en sluit de export aan op parseCrmExcel().
     var wb = XLSX.utils.book_new();
-    var rows = bron.map(function(l){
-      var li = (l.interacties && l.interacties.length) ? l.interacties[0] : null;
-      return {
-        'Nr': l.id,
-        'Soort': l.soort === 'technisch' ? 'Technisch' : 'Commercieel',
-        'Datum': l.datum || '',
-        'Bedrijf': l.bedrijf || '',
-        'SAP-nr': l.sapNr || '',
-        'Contactpersoon': l.contact || '',
-        'E-mail': l.email || '',
-        'Telefoon': l.tel || '',
-        'BU': BU_MAP[l.bu] || l.bu || '',
-        'Toegewezen aan': l.assign || '',
-        'Aangemaakt door': l.aangemaaktDoor || '',
-        'Status': l.status || '',
-        'Prioriteit': l.prio || '',
-        'Waarde (EUR)': l.waarde || 0,
-        'Omschrijving': l.omschr || '',
-        'Machine/toestel': l.machine || '',
-        'Vlootnummer': l.serienr || '',
-        'Type interventie': l.techType || '',
-        'Startdatum huur': l.startHuur || '',
-        'D1-interventie': isD1Lead(l) ? 'Ja' : '',
-        'Ondernomen actie': l.techActie || '',
-        'Werfadres': l.werf || '',
-        'Cross-sell van': l.doorgestuurdDoor || '',
-        'CS-vraag van': l.csVan || '',
-        'Aantal interacties': (l.interacties||[]).length,
-        'Laatste interactie': li ? ((TYPE_LABELS[li.type]||li.type||'') + ' \u2014 ' + (li.door||'') + ' \u2014 ' + (li.datum||'') + ' ' + (li.tijd||'')) : '',
-        'Contactgeschiedenis': (l.interacties||[]).map(function(i){
-          return '['+(i.datum||'')+' '+(i.tijd||'')+'] '+(TYPE_LABELS[i.type]||i.type||'')+' ('+(i.door||'')+'): '+String(i.note||'').replace(/<[^>]*>/g,'');
-        }).join('\n')
-      };
+    var rows = [];
+    bron.forEach(function(l) {
+      var alle = (l.interacties && l.interacties.length) ? l.interacties : [null];
+      // Oudste eerst, zodat het bestand chronologisch leest zoals Forms deed.
+      var gesorteerd = alle.slice().sort(function(a, b) {
+        return _crmStempel(a).localeCompare(_crmStempel(b));
+      });
+      var laatste = _crmDatumTijd(gesorteerd[gesorteerd.length - 1], l);
+      gesorteerd.forEach(function(i) {
+        var wie = (i && i.door) || l.aangemaaktDoor || l.assign || '';
+        var stempel = _crmDatumTijd(i, l);
+        rows.push({
+          'BU': l.bu || '',
+          'ID': _crmIdNummer(l.id),
+          'Begintijd': stempel,
+          'Tijd van voltooien': stempel,
+          'E-mail': getUserEmail(wie) || '',
+          'Naam': wie,
+          'Tijd van laatste wijziging': laatste,
+          'CLIENT NUMBER': l.sapNr || '',
+          'NAME COMPANY': l.bedrijf || '',
+          'NAME OF THE GROUP TO WHICH THE COMPANY BELONGS': l.groep || '',
+          'POST CODE': l.postcode || '',
+          'NAME OF CONTACT': l.contact || '',
+          'PHONE NUMBER': l.tel || '',
+          'EMAILADRES': l.email || '',
+          'RENTAL TURNOVER': l.waarde || 0,
+          'CUSTOMERS CURRENT PARTNERS (several options possible)': l.partners || '',
+          'DATE OF VISIT/ TEAMS/ CALL': _crmDatum((i && i.datum) || l.datum),
+          'NEXT CONTACT MOMENT': _crmDatum(l.nextContact),
+          'VISITED / TEAMS / CALL': _crmType(i),
+          'SUMMARY': (i && i.note ? String(i.note) : (l.omschr || '')).replace(/<[^>]*>/g, '').replace(/&#8212;|&mdash;/g, '\u2014')
+        });
+      });
     });
+
     var ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = Object.keys(rows[0]||{Nr:1}).map(function(h){ return {wch: Math.min(Math.max(h.length+2,12),50)}; });
+    ws['!cols'] = Object.keys(rows[0] || {BU:1}).map(function(h){ return {wch: Math.min(Math.max(h.length + 2, 12), 45)}; });
     XLSX.utils.book_append_sheet(wb, ws, 'Interacties');
     var d = new Date().toISOString().slice(0,10);
     // Zet de BU in de bestandsnaam, zodat een manager meteen ziet wat erin zit.
